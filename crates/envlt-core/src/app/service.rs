@@ -47,6 +47,7 @@ pub struct ProjectDiff {
     pub only_in_right: Vec<String>,
     pub shared_keys: Vec<String>,
     pub changed_values: Vec<String>,
+    pub changed_types: Vec<String>,
 }
 
 impl AppService {
@@ -418,6 +419,20 @@ impl AppService {
             })
             .collect();
 
+        let changed_types = left
+            .variables
+            .iter()
+            .filter_map(|(key, left_variable)| {
+                right.variables.get(key).and_then(|right_variable| {
+                    if left_variable.var_type != right_variable.var_type {
+                        Some(key.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
         Ok(ProjectDiff {
             left_project: left_project.to_owned(),
             right_project: right_project.to_owned(),
@@ -425,6 +440,7 @@ impl AppService {
             only_in_right,
             shared_keys,
             changed_values,
+            changed_types,
         })
     }
 
@@ -793,6 +809,67 @@ mod tests {
                 only_in_right: vec!["RIGHT_ONLY".to_owned()],
                 shared_keys: vec!["PORT".to_owned(), "SHARED".to_owned()],
                 changed_values: vec!["PORT".to_owned()],
+                changed_types: vec![],
+            }
+        );
+    }
+
+    #[test]
+    fn diff_projects_reports_changed_variable_types() {
+        let home = TempDir::new().expect("tempdir");
+        let left_dir = TempDir::new().expect("tempdir");
+        let right_dir = TempDir::new().expect("tempdir");
+        let left_env_path = left_dir.path().join(".env");
+        let right_env_path = right_dir.path().join(".env");
+
+        std::fs::write(&left_env_path, "API_TOKEN=same\n").expect("write left env");
+        std::fs::write(&right_env_path, "API_TOKEN=same\n").expect("write right env");
+
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file(
+                "left-project",
+                &left_env_path,
+                Some(left_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add left project");
+        service
+            .add_project_from_env_file(
+                "right-project",
+                &right_env_path,
+                Some(right_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add right project");
+
+        service
+            .set_variable(
+                "right-project",
+                "API_TOKEN",
+                "same",
+                Some(VarType::Plain),
+                "passphrase",
+            )
+            .expect("retag variable");
+
+        let diff = service
+            .diff_projects("left-project", "right-project", "passphrase")
+            .expect("project diff");
+
+        assert_eq!(
+            diff,
+            ProjectDiff {
+                left_project: "left-project".to_owned(),
+                right_project: "right-project".to_owned(),
+                only_in_left: vec![],
+                only_in_right: vec![],
+                shared_keys: vec!["API_TOKEN".to_owned()],
+                changed_values: vec![],
+                changed_types: vec!["API_TOKEN".to_owned()],
             }
         );
     }

@@ -568,14 +568,58 @@ fn diff_between_projects_reports_shared_and_unique_keys() {
         .assert()
         .success()
         .stdout(predicate::str::contains("shared\t2"))
-        .stdout(predicate::str::contains("changed\t1"))
+        .stdout(predicate::str::contains("changed_values\t1"))
+        .stdout(predicate::str::contains("changed_types\t0"))
         .stdout(predicate::str::contains("only_left\t1"))
         .stdout(predicate::str::contains("only_right\t1"))
         .stdout(predicate::str::contains("ok\tPORT"))
         .stdout(predicate::str::contains("ok\tSHARED"))
-        .stdout(predicate::str::contains("changed\tPORT"))
+        .stdout(predicate::str::contains("value_changed\tPORT"))
         .stdout(predicate::str::contains("left_only\tLEFT_ONLY"))
         .stdout(predicate::str::contains("right_only\tRIGHT_ONLY"));
+}
+
+#[test]
+fn diff_between_projects_reports_type_changes_separately() {
+    let home = TempDir::new().expect("tempdir");
+    let left_dir = TempDir::new().expect("tempdir");
+    let right_dir = TempDir::new().expect("tempdir");
+    let left_env_path = left_dir.path().join(".env");
+    let right_env_path = right_dir.path().join(".env");
+
+    fs::write(&left_env_path, "API_TOKEN=same\n").expect("write left env");
+    fs::write(&right_env_path, "API_TOKEN=same\n").expect("write right env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(left_dir.path())
+        .args(["add", "left-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .current_dir(right_dir.path())
+        .args(["add", "right-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "right-project",
+            "--plain",
+            "API_TOKEN=same",
+        ])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["diff", "--project", "left-project", "right-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("changed_values\t0"))
+        .stdout(predicate::str::contains("changed_types\t1"))
+        .stdout(predicate::str::contains("type_changed\tAPI_TOKEN"));
 }
 
 #[test]

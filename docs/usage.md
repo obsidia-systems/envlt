@@ -113,6 +113,7 @@ Salida actual:
 
 - claves compartidas entre ambos proyectos
 - claves compartidas con valor distinto
+- claves compartidas con tipo distinto
 - claves solo presentes en el proyecto izquierdo
 - claves solo presentes en el proyecto derecho
 
@@ -256,6 +257,7 @@ Reporta:
 
 - claves compartidas
 - claves compartidas con valor distinto
+- claves compartidas con tipo distinto
 - claves solo presentes en el proyecto izquierdo
 - claves solo presentes en el proyecto derecho
 
@@ -363,7 +365,7 @@ Todavía no soporta toda la complejidad de shells ni interpolaciones avanzadas.
 - no hay ocultado parcial de secretos en salidas
 - no hay `doctor`
 - no hay sync con nube
-- `diff` hoy compara presencia de claves y detecta cambios de valor, pero no imprime todavía un before/after detallado
+- `diff` hoy compara presencia de claves, cambios de valor y cambios de tipo, pero no imprime todavía un before/after detallado
 - `gen` hoy cubre un conjunto inicial de tipos, un modo configurable básico y un modo interactivo guiado parcial, pero no todavía todos los presets y formatos del documento original
 
 ## Tipado automático de variables

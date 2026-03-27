@@ -44,7 +44,8 @@ pub fn run_diff(
         println!("left\t{}", diff.left_project);
         println!("right\t{}", diff.right_project);
         println!("shared\t{}", diff.shared_keys.len());
-        println!("changed\t{}", diff.changed_values.len());
+        println!("changed_values\t{}", diff.changed_values.len());
+        println!("changed_types\t{}", diff.changed_types.len());
         println!("only_left\t{}", diff.only_in_left.len());
         println!("only_right\t{}", diff.only_in_right.len());
 
@@ -52,7 +53,10 @@ pub fn run_diff(
             println!("ok\t{key}");
         }
         for key in diff.changed_values {
-            println!("changed\t{key}");
+            println!("value_changed\t{key}");
+        }
+        for key in diff.changed_types {
+            println!("type_changed\t{key}");
         }
         for key in diff.only_in_left {
             println!("left_only\t{key}");
