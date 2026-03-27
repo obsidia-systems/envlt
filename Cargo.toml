@@ -1,0 +1,33 @@
+[workspace]
+members = ["crates/envlt-core", "crates/envlt-cli"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/example/envlt"
+rust-version = "1.75"
+version = "0.1.0"
+
+[workspace.dependencies]
+age = "0.10"
+anyhow = "1"
+assert_cmd = "2"
+base64 = "0.21"
+chacha20poly1305 = "0.10"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+clap = { version = "4.5", features = ["derive"] }
+dirs = "5"
+predicates = "3"
+rand = "0.8"
+rpassword = "7"
+scrypt = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "1"
+toml = "0.8"
+uuid = { version = "1", features = ["v4"] }
+
+[workspace.lints.clippy]
+all = "deny"
