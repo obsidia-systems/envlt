@@ -3,7 +3,10 @@ use std::process::ExitCode;
 use anyhow::Result;
 use envlt_core::{generate_custom_value, supported_gen_types, AppService, Charset, GenType};
 
-use crate::cli::{print_success, read_gen_type, read_passphrase};
+use crate::cli::{
+    print_success, read_gen_project, read_gen_save_choice, read_gen_set_key, read_gen_type,
+    read_passphrase,
+};
 
 const DEFAULT_GEN_TYPE: &str = "token";
 
@@ -29,6 +32,10 @@ impl<'a> GenOptions<'a> {
             None => read_gen_type(DEFAULT_GEN_TYPE),
         }
     }
+
+    fn interactive_preset_mode(&self) -> bool {
+        self.gen_type.is_none() && !self.custom_mode_enabled()
+    }
 }
 
 pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode> {
@@ -44,6 +51,8 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
     } else {
         Some(options.resolve_gen_type()?)
     };
+
+    let save_target = resolve_save_target(service, &options)?;
 
     let generated_value = match options.len {
         Some(len) => {
@@ -64,10 +73,9 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
         }
     };
 
-    match options.set_key {
-        Some(key) => {
+    match save_target {
+        Some((key, project)) => {
             let passphrase = read_passphrase(false)?;
-            let project = service.resolve_project_name(options.project.as_deref(), None)?;
             let var_type = if options.custom_mode_enabled() {
                 None
             } else {
@@ -76,7 +84,7 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
                     .expect("non-custom mode always resolves a generator type");
                 Some(GenType::parse(gen_type)?.default_var_type())
             };
-            service.set_variable(&project, key, &generated_value, var_type, &passphrase)?;
+            service.set_variable(&project, &key, &generated_value, var_type, &passphrase)?;
             if options.silent {
                 print_success("Value generated and saved.")?;
             } else {
@@ -91,4 +99,32 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+fn resolve_save_target(
+    service: &AppService,
+    options: &GenOptions<'_>,
+) -> Result<Option<(String, String)>> {
+    if let Some(key) = options.set_key {
+        let project = service.resolve_project_name(options.project.as_deref(), None)?;
+        return Ok(Some((key.to_owned(), project)));
+    }
+
+    if !options.interactive_preset_mode() {
+        return Ok(None);
+    }
+
+    if !read_gen_save_choice()? {
+        return Ok(None);
+    }
+
+    let key = read_gen_set_key()?;
+    let project = match service.resolve_project_name(None, None) {
+        Ok(project) => project,
+        Err(_) => {
+            let interactive_project = read_gen_project()?;
+            service.resolve_project_name(interactive_project.as_deref(), None)?
+        }
+    };
+    Ok(Some((key, project)))
 }

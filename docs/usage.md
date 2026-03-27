@@ -21,6 +21,9 @@ Ese archivo no contiene secretos. Solo sirve para que `envlt` sepa qué proyecto
 - `ENVLT_PASSPHRASE`: evita el prompt interactivo y usa esa passphrase directamente.
 - `ENVLT_BUNDLE_PASSPHRASE`: evita el prompt interactivo para bundles `.evlt`.
 - `ENVLT_GEN_TYPE`: fija el tipo de `envlt gen` cuando usas el modo interactivo básico o automatización.
+- `ENVLT_GEN_SAVE`: responde si `envlt gen` debe guardar el valor en el vault en modo interactivo.
+- `ENVLT_GEN_SET_KEY`: define la variable destino cuando `envlt gen` guarda el valor en modo interactivo.
+- `ENVLT_GEN_PROJECT`: define el proyecto destino en el flujo interactivo de `envlt gen`.
 
 ## Flujo recomendado
 
@@ -197,6 +200,7 @@ Flujo actual:
 
 - genera valores seguros con CSPRNG
 - si no pasas `--type` ni `--len`, pide el tipo de generador y usa `token` como default
+- en ese mismo flujo puede preguntarte si quieres guardar el valor en el vault
 - puede imprimir el valor generado
 - puede guardarlo directo en el vault
 - si se guarda con `--set`, usa el tipo sugerido por el generador
@@ -330,8 +334,10 @@ Tipos disponibles hoy:
 Notas:
 
 - si usas `--len`, `envlt` entra en modo configurable y no usa `--type`
-- si no pasas `--type` ni `--len`, `envlt gen` entra en modo interactivo básico y pide el tipo
+- si no pasas `--type` ni `--len`, `envlt gen` entra en modo interactivo guiado y pide el tipo
+- el flujo guiado también puede ofrecer guardar el valor en una variable del vault
 - el modo interactivo básico usa `token` como default y puede automatizarse con `ENVLT_GEN_TYPE`
+- para automatización del guardado interactivo puedes usar `ENVLT_GEN_SAVE`, `ENVLT_GEN_SET_KEY` y `ENVLT_GEN_PROJECT`
 - el modo configurable actual usa charset alfanumérico por defecto si no pasas `--hex` ni `--symbols`
 - `password` genera actualmente una password memorable de 4 palabras separadas por `-`
 
@@ -358,7 +364,7 @@ Todavía no soporta toda la complejidad de shells ni interpolaciones avanzadas.
 - no hay `doctor`
 - no hay sync con nube
 - `diff` hoy compara presencia de claves y detecta cambios de valor, pero no imprime todavía un before/after detallado
-- `gen` hoy cubre un conjunto inicial de tipos, un modo configurable básico y un modo interactivo inicial, pero no todavía el flujo interactivo completo ni todos los formatos del documento original
+- `gen` hoy cubre un conjunto inicial de tipos, un modo configurable básico y un modo interactivo guiado parcial, pero no todavía todos los presets y formatos del documento original
 
 ## Tipado automático de variables
 

@@ -48,7 +48,7 @@ Fases con avance real en código:
 - resolución automática de proyecto vía `.envlt-link`
 - passphrase del vault por prompt o `ENVLT_PASSPHRASE`
 - passphrase del bundle por prompt o `ENVLT_BUNDLE_PASSPHRASE`
-- `gen` con modo interactivo básico para elegir tipo o `ENVLT_GEN_TYPE`
+- `gen` con flujo interactivo guiado para elegir tipo y guardar opcionalmente en el vault
 
 ### Calidad
 

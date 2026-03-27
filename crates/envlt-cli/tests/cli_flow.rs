@@ -721,3 +721,38 @@ fn gen_without_type_uses_interactive_env_override() {
             parts.len() == 4 && parts.iter().all(|part| !part.is_empty())
         }));
 }
+
+#[test]
+fn gen_interactive_mode_can_store_value_via_env_overrides() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "interactive-gen-project"])
+        .assert()
+        .success();
+
+    let mut cmd = cli(&home);
+    cmd.current_dir(project_dir.path());
+    cmd.env("ENVLT_GEN_TYPE", "jwt-secret");
+    cmd.env("ENVLT_GEN_SAVE", "yes");
+    cmd.env("ENVLT_GEN_SET_KEY", "JWT_SECRET");
+    cmd.arg("gen")
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let value = output.trim();
+            value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
+        }));
+
+    cli(&home)
+        .args(["vars", "--project", "interactive-gen-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));
+}

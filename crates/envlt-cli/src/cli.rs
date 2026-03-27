@@ -68,23 +68,47 @@ pub fn read_example_value(key: &str, var_type: VarType) -> Result<String> {
 
 pub fn read_gen_type(default: &str) -> Result<String> {
     let env_key = "ENVLT_GEN_TYPE";
-    if let Some(value) = std::env::var_os(env_key) {
-        return value
-            .into_string()
-            .map_err(|_| anyhow!("{env_key} contains invalid UTF-8"));
-    }
-
-    let mut stdout = io::stdout().lock();
-    write!(stdout, "Generator type [{default}]: ")?;
-    stdout.flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    let value = input.trim_end_matches(['\r', '\n']).trim();
+    let supported = "jwt-secret, uuid, api-key, token, password";
+    let value = read_prompt_line(
+        Some(env_key),
+        &format!("Generator type [{default}] ({supported}): "),
+    )?;
     if value.is_empty() {
         Ok(default.to_owned())
     } else {
-        Ok(value.to_owned())
+        Ok(value)
+    }
+}
+
+pub fn read_gen_save_choice() -> Result<bool> {
+    let value = read_prompt_line(Some("ENVLT_GEN_SAVE"), "Save to vault? [y/N]: ")?;
+    Ok(matches!(
+        value.to_ascii_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    ))
+}
+
+pub fn read_gen_set_key() -> Result<String> {
+    let value = read_prompt_line(
+        Some("ENVLT_GEN_SET_KEY"),
+        "Variable key to store generated value: ",
+    )?;
+    if value.is_empty() {
+        Err(anyhow!("variable key cannot be empty"))
+    } else {
+        Ok(value)
+    }
+}
+
+pub fn read_gen_project() -> Result<Option<String>> {
+    let value = read_prompt_line(
+        Some("ENVLT_GEN_PROJECT"),
+        "Project name (leave empty to use .envlt-link): ",
+    )?;
+    if value.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(value))
     }
 }
 
@@ -98,4 +122,22 @@ fn sanitize_env_key(key: &str) -> String {
             }
         })
         .collect()
+}
+
+fn read_prompt_line(env_key: Option<&str>, prompt: &str) -> Result<String> {
+    if let Some(env_key) = env_key {
+        if let Some(value) = std::env::var_os(env_key) {
+            return value
+                .into_string()
+                .map_err(|_| anyhow!("{env_key} contains invalid UTF-8"));
+        }
+    }
+
+    let mut stdout = io::stdout().lock();
+    write!(stdout, "{prompt}")?;
+    stdout.flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim_end_matches(['\r', '\n']).trim().to_owned())
 }
