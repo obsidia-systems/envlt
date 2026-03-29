@@ -26,6 +26,12 @@ envlt --help
 
 This is currently a manual binary installation flow, not a native package-manager install.
 
+On macOS, downloaded binaries may carry Apple's quarantine attribute. Until signed and notarized releases are in place, remove it for trusted release binaries after extraction:
+
+```bash
+xattr -d com.apple.quarantine ./envlt
+```
+
 ### Run without installing
 
 ```bash
@@ -143,7 +149,7 @@ envlt_version = "1.0"
 ## Current limitations
 
 - Homebrew distribution is not published yet
-- release assets are not yet a complete multi-architecture distribution strategy
+- macOS artifacts are not signed or notarized yet, so Gatekeeper may block them until quarantine is removed manually
 - Cloud sync is not implemented
 - Keychain integration is not implemented
 - `gen` still lacks all planned presets

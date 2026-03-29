@@ -112,6 +112,14 @@ envlt --help
 
 This is the current public distribution path before Homebrew packaging is added.
 
+On macOS, binaries downloaded from a browser may be blocked by Gatekeeper until the project ships signed and notarized artifacts. For a release you trust, you can remove the quarantine attribute after extracting it:
+
+```bash
+xattr -d com.apple.quarantine ./envlt
+```
+
+Then move the binary into your `PATH` and run it normally.
+
 ### Development usage from the repository
 
 ```bash
@@ -207,7 +215,6 @@ What is already ready:
 
 What still remains:
 
-- publish the repository and validate GitHub Actions in the remote repo
-- create the first tagged release and inspect generated artifacts
-- define the Homebrew formula/tap around those published artifacts
-- expand release artifacts into an explicit multi-architecture strategy
+- verify the multi-architecture release matrix in GitHub Releases
+- define the Homebrew formula/tap around published artifacts
+- add signing and notarization for macOS artifacts

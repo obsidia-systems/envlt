@@ -44,7 +44,7 @@ The repository already contains:
 The release workflow currently:
 
 - runs on tags matching `v*`
-- builds the CLI release binary
+- builds explicit per-architecture CLI release binaries
 - creates `.tar.gz` archives
 - generates `.sha256` checksum files
 - uploads workflow artifacts
@@ -70,16 +70,32 @@ envlt --help
 
 This means the project already supports manual binary distribution, even though Homebrew and native Linux package-manager installs are not implemented yet.
 
-## Current architecture limitation
+On macOS, users may also need to remove the quarantine attribute from a trusted downloaded binary before first execution:
 
-The current release workflow does not yet define a full multi-architecture target matrix.
+```bash
+xattr -d com.apple.quarantine ./envlt
+```
 
-Today:
+## Current architecture coverage
 
-- the Linux artifact is explicitly named `envlt-linux-x86_64`
-- the macOS artifact is built for the host runner and packaged as a host-specific archive
+The current release workflow now defines an explicit target matrix:
 
-That means the release process is not yet a complete cross-architecture distribution story. The next packaging step should make architecture explicit in artifact naming and target selection.
+- `envlt-linux-x86_64.tar.gz`
+- `envlt-linux-aarch64.tar.gz`
+- `envlt-macos-x86_64.tar.gz`
+- `envlt-macos-aarch64.tar.gz`
+
+This makes the download surface suitable for both manual installation and future Homebrew formulas.
+
+## Current macOS limitation
+
+The project does not yet ship signed or notarized macOS artifacts.
+
+That means:
+
+- Apple Gatekeeper may block first launch for browser-downloaded binaries
+- users may need to remove quarantine manually for trusted binaries
+- signing and notarization should be added before calling the macOS packaging story fully polished
 
 ## Release checklist
 
@@ -156,7 +172,7 @@ The release workflow is a baseline, not the final packaging story.
 Still pending after the first successful tagged release:
 
 - refine artifact naming if needed
-- define explicit architecture targets for macOS and Linux
 - decide Homebrew tap structure
 - create the Homebrew formula
+- add macOS signing and notarization
 - optionally expand platform matrix later
