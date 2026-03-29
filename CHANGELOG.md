@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-03-29
+
 ### Added
 
 - Encrypted local vault with atomic persistence and backup

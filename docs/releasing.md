@@ -78,6 +78,15 @@ git push origin v0.1.0
 
 This triggers the release workflow.
 
+If you already created the tag locally and then changed release-facing files such as `CHANGELOG.md`, recreate the tag before pushing it:
+
+```bash
+git tag -d v0.1.0
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
+```
+
 ### 4. Validate the GitHub release
 
 After the workflow finishes, verify:
