@@ -83,6 +83,14 @@ Reports:
 - keys missing from the vault
 - keys present only in the vault
 
+Output format:
+
+- `mode\texample`
+- `project\t<name>`
+- `example\t<path>`
+- `summary\tshared=...\tmissing=...\textra=...`
+- categorized key lines
+
 #### Compare two projects
 
 ```bash
@@ -96,6 +104,14 @@ Reports:
 - keys with changed types
 - keys only on the left project
 - keys only on the right project
+
+Output format:
+
+- `mode\tproject`
+- `left\t<name>`
+- `right\t<name>`
+- `summary\tshared=...\tchanged_values=...\tchanged_types=...\tonly_left=...\tonly_right=...`
+- categorized key lines
 
 ### `envlt doctor [--decrypt]`
 
@@ -165,6 +181,8 @@ envlt gen --type jwt-secret
 envlt gen --type password
 envlt gen --len 64 --hex
 envlt gen --len 32 --symbols
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
 envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --silent
 ```
 
@@ -181,6 +199,9 @@ Current behavior:
 - supports flag-driven generation
 - supports a guided interactive path
 - can store the generated value directly in the vault
+- does not reveal stored generated values by default
+- supports `--show` as an explicit reveal flag
+- treats `--show` and `--silent` as conflicting flags
 
 ### `envlt export <project> --out <path>`
 

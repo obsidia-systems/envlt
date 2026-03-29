@@ -17,8 +17,8 @@ It already covers the core local workflow well, but several meaningful features 
 | `.evlt` export/import | Done |
 | Variable typing and type inference | Done |
 | `.env.example` bootstrap | Done |
-| Diffing | Done, but not fully polished |
-| Secret generation | Done, but still expandable |
+| Diffing | Done with a safe-summary baseline |
+| Secret generation | Done with secure storage defaults |
 | Diagnostics with `doctor` | Done |
 
 ## What is still missing
@@ -30,8 +30,8 @@ It already covers the core local workflow well, but several meaningful features 
 | GitHub Actions for CI and release | Required for reliable public distribution |
 | Homebrew tap and release artifacts | Required for polished installation |
 | Better top-level release docs | Required for external users |
-| Additional `gen` presets | Needed to match the original spec more closely |
-| Richer `diff` output | Needed for stronger diagnostics without exposing secrets |
+| Additional `gen` presets | Still optional if broader generator coverage is needed |
+| Richer `diff` output | Optional only if the product wants more than safe-summary output |
 | Additional output hardening | Important before broader adoption |
 
 ### Security and platform work
@@ -69,7 +69,7 @@ It already covers the core local workflow well, but several meaningful features 
 
 - Keychain integration
 - more `gen` presets
-- richer `diff` UX
+- optional richer `diff` UX beyond the current safe-summary design
 
 ### Milestone 4: Expansion
 

@@ -21,7 +21,7 @@ The project is currently in the hardening and release-engineering stage before p
 - Variable typing with `Secret`, `Config`, and `Plain`
 - Variable inspection with secret masking
 - Project-to-example and project-to-project diffing
-- Secret generation with presets and guided interactive flow
+- Secret generation with presets, guided interactive flow, and secure-by-default storage
 - Project export and import via `.evlt` bundles
 - Local diagnostics through `envlt doctor`
 - Process execution with in-memory environment injection
@@ -38,6 +38,8 @@ envlt run --project api-payments -- node server.js
 envlt export api-payments --out bundle.evlt
 envlt import bundle.evlt
 envlt doctor --decrypt
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
 
 If the current directory contains `.envlt-link`, several commands can resolve the project automatically: `vars`, `diff`, `set`, `use`, `run`, and part of the `gen` flow.
@@ -94,7 +96,8 @@ flowchart LR
 - Bundles use a passphrase separate from the main vault passphrase
 - `envlt run` avoids writing `.env` files to disk
 - `vars` masks `Secret` values
-- `diff` does not print secret values
+- `diff` reports categorized changes without printing values
+- `gen --set` does not reveal generated values unless `--show` is used
 
 See the full security notes in [Documentation Index](docs/README.md).
 

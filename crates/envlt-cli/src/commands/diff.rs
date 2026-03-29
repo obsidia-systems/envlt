@@ -23,8 +23,15 @@ pub fn run_diff(
     if let Some(example) = example {
         let diff = service.diff_project_against_example(&project, example, &passphrase)?;
 
+        println!("mode\texample");
         println!("project\t{}", diff.project);
         println!("example\t{}", diff.example_path.display());
+        println!(
+            "summary\tshared={}\tmissing={}\textra={}",
+            diff.shared_keys.len(),
+            diff.missing_in_vault.len(),
+            diff.extra_in_vault.len()
+        );
         println!("shared\t{}", diff.shared_keys.len());
         println!("missing\t{}", diff.missing_in_vault.len());
         println!("extra\t{}", diff.extra_in_vault.len());
@@ -41,8 +48,17 @@ pub fn run_diff(
     } else if let Some(other_project) = other_project {
         let diff = service.diff_projects(&project, other_project, &passphrase)?;
 
+        println!("mode\tproject");
         println!("left\t{}", diff.left_project);
         println!("right\t{}", diff.right_project);
+        println!(
+            "summary\tshared={}\tchanged_values={}\tchanged_types={}\tonly_left={}\tonly_right={}",
+            diff.shared_keys.len(),
+            diff.changed_values.len(),
+            diff.changed_types.len(),
+            diff.only_in_left.len(),
+            diff.only_in_right.len()
+        );
         println!("shared\t{}", diff.shared_keys.len());
         println!("changed_values\t{}", diff.changed_values.len());
         println!("changed_types\t{}", diff.changed_types.len());

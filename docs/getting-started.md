@@ -82,8 +82,16 @@ envlt run --project api-payments -- node server.js
 ### Generate and store a secret
 
 ```bash
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --silent
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
+
+Output policy:
+
+- generation without storage prints the value unless `--silent`
+- generation with storage prints a success message by default
+- `--show` explicitly reveals the stored generated value
+- `--silent` suppresses all output and conflicts with `--show`
 
 ### Share a project snapshot
 
@@ -123,4 +131,4 @@ envlt_version = "1.0"
 - Cloud sync is not implemented
 - Keychain integration is not implemented
 - `gen` still lacks all planned presets
-- `diff` does not yet provide a secure before/after detail view
+- `diff` intentionally does not provide before/after value views in this milestone

@@ -564,6 +564,10 @@ fn diff_example_reports_shared_missing_and_extra_keys() {
         ])
         .assert()
         .success()
+        .stdout(predicate::str::contains("mode\texample"))
+        .stdout(predicate::str::contains(
+            "summary\tshared=2\tmissing=1\textra=1",
+        ))
         .stdout(predicate::str::contains("shared\t2"))
         .stdout(predicate::str::contains("missing\t1"))
         .stdout(predicate::str::contains("extra\t1"))
@@ -629,6 +633,10 @@ fn diff_between_projects_reports_shared_and_unique_keys() {
         .args(["diff", "--project", "left-project", "right-project"])
         .assert()
         .success()
+        .stdout(predicate::str::contains("mode\tproject"))
+        .stdout(predicate::str::contains(
+            "summary\tshared=2\tchanged_values=1\tchanged_types=0\tonly_left=1\tonly_right=1",
+        ))
         .stdout(predicate::str::contains("shared\t2"))
         .stdout(predicate::str::contains("changed_values\t1"))
         .stdout(predicate::str::contains("changed_types\t0"))
@@ -736,7 +744,6 @@ fn gen_can_store_value_in_project() {
             "JWT_SECRET",
             "--project",
             "gen-project",
-            "--silent",
         ])
         .assert()
         .success()
@@ -788,10 +795,10 @@ fn gen_supports_custom_symbols_length_and_store() {
             "CUSTOM_SECRET",
             "--project",
             "gen-custom-project",
-            "--silent",
         ])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("Value generated and saved."));
 
     cli(&home)
         .args(["vars", "--project", "gen-custom-project"])
@@ -851,14 +858,148 @@ fn gen_interactive_mode_can_store_value_via_env_overrides() {
     cmd.arg("gen")
         .assert()
         .success()
-        .stdout(predicate::function(|output: &str| {
-            let value = output.trim();
-            value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
-        }));
+        .stdout(predicate::str::contains("Value generated and saved."));
 
     cli(&home)
         .args(["vars", "--project", "interactive-gen-project"])
         .assert()
         .success()
         .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));
+}
+
+#[test]
+fn gen_set_does_not_print_value_by_default() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "secure-gen-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "gen",
+            "--type",
+            "jwt-secret",
+            "--set",
+            "JWT_SECRET",
+            "--project",
+            "secure-gen-project",
+        ])
+        .assert()
+        .success()
+        .stdout("Value generated and saved.\n");
+}
+
+#[test]
+fn gen_set_show_prints_generated_value() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "show-gen-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "gen",
+            "--type",
+            "jwt-secret",
+            "--set",
+            "JWT_SECRET",
+            "--project",
+            "show-gen-project",
+            "--show",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let value = output.trim();
+            value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
+        }));
+}
+
+#[test]
+fn gen_set_silent_prints_nothing() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "silent-gen-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "gen",
+            "--type",
+            "jwt-secret",
+            "--set",
+            "JWT_SECRET",
+            "--project",
+            "silent-gen-project",
+            "--silent",
+        ])
+        .assert()
+        .success()
+        .stdout("");
+}
+
+#[test]
+fn gen_show_and_silent_conflict() {
+    let home = TempDir::new().expect("tempdir");
+
+    cli(&home)
+        .args(["gen", "--type", "token", "--show", "--silent"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be used with"));
+}
+
+#[test]
+fn gen_custom_set_does_not_print_value_by_default() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "custom-secure-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "gen",
+            "--len",
+            "32",
+            "--symbols",
+            "--set",
+            "CUSTOM_SECRET",
+            "--project",
+            "custom-secure-project",
+        ])
+        .assert()
+        .success()
+        .stdout("Value generated and saved.\n");
 }

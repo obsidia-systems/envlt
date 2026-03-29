@@ -58,6 +58,7 @@ fn real_main() -> Result<ExitCode> {
             len,
             hex,
             symbols,
+            show,
             set,
             project,
             silent,
@@ -69,6 +70,7 @@ fn real_main() -> Result<ExitCode> {
                 len,
                 hex,
                 symbols,
+                show,
                 set_key: &set,
                 project: &project,
                 silent,
@@ -138,6 +140,8 @@ enum Commands {
         hex: bool,
         #[arg(long, conflicts_with = "hex")]
         symbols: bool,
+        #[arg(long, conflicts_with = "silent")]
+        show: bool,
         #[arg(long)]
         set: Option<String>,
         #[arg(long)]

@@ -16,6 +16,7 @@ pub struct GenOptions<'a> {
     pub len: Option<usize>,
     pub hex: bool,
     pub symbols: bool,
+    pub show: bool,
     pub set_key: &'a Option<String>,
     pub project: &'a Option<String>,
     pub silent: bool,
@@ -86,9 +87,11 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
             };
             service.set_variable(&project, &key, &generated_value, var_type, &passphrase)?;
             if options.silent {
-                print_success("Value generated and saved.")?;
-            } else {
+                // Explicit silent mode suppresses all output, even after a successful save.
+            } else if options.show {
                 println!("{generated_value}");
+            } else {
+                print_success("Value generated and saved.")?;
             }
         }
         None => {

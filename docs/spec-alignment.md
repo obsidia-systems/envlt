@@ -4,7 +4,7 @@ This document verifies the current implementation against the original project d
 
 ## High-level conclusion
 
-The current codebase broadly matches and exceeds the original Phase 1 definition, fully covers the intended Phase 2 scope, and implements a substantial part of Phase 3.
+The current codebase broadly matches and exceeds the original Phase 1 definition, fully covers the intended Phase 2 scope, and now provides a packaging-ready implementation of the currently chosen Phase 3 scope.
 
 It does **not** yet match the complete product vision from the original project definition document.
 
@@ -14,7 +14,7 @@ It does **not** yet match the complete product vision from the original project 
 | --- | --- | --- |
 | Phase 1 local vault workflow | Implemented | Includes extra features beyond the initial MVP |
 | Phase 2 export/import bundles | Implemented | Portable `.evlt` bundles are working |
-| Phase 3 variable typing | Implemented in large part | `VarType`, inference, `add --from-example`, `diff`, and `gen` exist |
+| Phase 3 variable typing | Implemented for the current milestone | `VarType`, inference, `add --from-example`, `diff`, and `gen` are implemented and usable |
 | Phase 4 cloud sync | Missing | Intentionally deferred |
 | Phase 5 release/distribution | Partial | `doctor` and docs are in place, CI and packaging still missing |
 | Phase 6 Keychain | Missing | Planned, not started |
@@ -70,7 +70,15 @@ This is a reasonable product decision because it improves the installable local-
 
 ### Diff and generation depth
 
-The original definition described richer long-term experiences for diffing and secret generation. The current implementation is useful and already production-shaped, but not yet fully exhaustive.
+The original definition described richer long-term experiences for diffing and secret generation. The current implementation now has a stable baseline for packaging:
+
+- `gen` is secure by default when storing values
+- `diff` is intentionally safe-summary only
+
+What remains in this area is expansion, not baseline completeness:
+
+- more generator presets if the product wants them
+- optional richer diff presentation later
 
 ## Current feature completeness by area
 
@@ -79,7 +87,7 @@ The original definition described richer long-term experiences for diffing and s
 | Local development workflow | Strong |
 | Bundle portability | Strong |
 | Diagnostics | Good starting point |
-| Secret generation | Good, not complete |
+| Secret generation | Strong baseline, not exhaustive |
 | Release engineering | In progress |
 | Cloud sync | Not started |
 | Keychain | Not started |
