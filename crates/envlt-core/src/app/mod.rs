@@ -1,3 +1,6 @@
 mod service;
 
-pub use service::{AppService, ExampleDiff, ProjectDiff, RunEnvironment, VariableView};
+pub use service::{
+    AppService, DiagnosticCheck, DiagnosticSeverity, DoctorReport, ExampleDiff, ProjectDiff,
+    RunEnvironment, VariableView,
+};

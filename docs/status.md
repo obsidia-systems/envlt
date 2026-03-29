@@ -31,6 +31,7 @@ Fases con avance real en código:
 - `init`
 - `add`
 - `list`
+- `doctor`
 - `vars`
 - `diff --example`
 - `diff <proyecto> <otro-proyecto>`
@@ -82,7 +83,6 @@ Fases con avance real en código:
 
 ### Operación
 
-- `doctor`
 - mejores diagnósticos y recovery
 - estrategia de migraciones de vault más explícita
 

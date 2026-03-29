@@ -117,6 +117,22 @@ Salida actual:
 - claves solo presentes en el proyecto izquierdo
 - claves solo presentes en el proyecto derecho
 
+### 3.4 Diagnosticar el entorno actual
+
+```bash
+envlt doctor
+envlt doctor --decrypt
+```
+
+Salida actual:
+
+- resume checks `ok`, `warn` y `error`
+- revisa home de `envlt`
+- revisa presencia de `vault.age`
+- revisa backup `vault.age.bak`
+- revisa `.envlt-link` en el directorio actual
+- con `--decrypt`, intenta descifrar el vault y validar el target del link
+
 ### 4. Actualizar una variable
 
 ```bash
@@ -261,6 +277,24 @@ Reporta:
 - claves solo presentes en el proyecto izquierdo
 - claves solo presentes en el proyecto derecho
 
+### `envlt doctor [--decrypt]`
+
+Ejecuta checks locales de diagnóstico.
+
+Checks actuales:
+
+- home de `envlt`
+- presencia del vault
+- presencia del backup
+- `.envlt-link` en el directorio actual
+- si usas `--decrypt`, descifrado del vault y validez del proyecto enlazado
+
+Comportamiento:
+
+- sin `--decrypt`, no pide passphrase
+- con `--decrypt`, usa `ENVLT_PASSPHRASE` o prompt
+- devuelve exit code distinto de cero si encuentra errores reales
+
 ### `envlt set [--project <name>] <KEY=VALUE>`
 
 Crea o actualiza una variable del proyecto.
@@ -363,7 +397,6 @@ Todavía no soporta toda la complejidad de shells ni interpolaciones avanzadas.
 
 - `VarType` ya puede inspeccionarse y forzarse en `set`, pero todavía falta edición de tipos dedicada o cambios masivos
 - no hay ocultado parcial de secretos en salidas
-- no hay `doctor`
 - no hay sync con nube
 - `diff` hoy compara presencia de claves, cambios de valor y cambios de tipo, pero no imprime todavía un before/after detallado
 - `gen` hoy cubre un conjunto inicial de tipos, un modo configurable básico y un modo interactivo guiado parcial, pero no todavía todos los presets y formatos del documento original

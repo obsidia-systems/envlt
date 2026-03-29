@@ -50,6 +50,62 @@ pub struct ProjectDiff {
     pub changed_types: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Ok,
+    Warn,
+    Error,
+}
+
+impl DiagnosticSeverity {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticCheck {
+    pub code: String,
+    pub severity: DiagnosticSeverity,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DoctorReport {
+    pub checks: Vec<DiagnosticCheck>,
+}
+
+impl DoctorReport {
+    pub fn ok_count(&self) -> usize {
+        self.checks
+            .iter()
+            .filter(|check| check.severity == DiagnosticSeverity::Ok)
+            .count()
+    }
+
+    pub fn warn_count(&self) -> usize {
+        self.checks
+            .iter()
+            .filter(|check| check.severity == DiagnosticSeverity::Warn)
+            .count()
+    }
+
+    pub fn error_count(&self) -> usize {
+        self.checks
+            .iter()
+            .filter(|check| check.severity == DiagnosticSeverity::Error)
+            .count()
+    }
+
+    pub fn has_errors(&self) -> bool {
+        self.error_count() > 0
+    }
+}
+
 impl AppService {
     pub fn new(store: VaultStore) -> Self {
         Self { store }
@@ -464,6 +520,140 @@ impl AppService {
         let variables = self.project_variables(project_name, passphrase)?;
         Ok(RunEnvironment { variables })
     }
+
+    pub fn doctor(&self, current_dir: Option<&Path>, passphrase: Option<&str>) -> DoctorReport {
+        let mut checks = Vec::new();
+        let root_dir = self.store.root_dir();
+        let vault_path = self.store.vault_path();
+        let backup_path = self.store.backup_path();
+
+        checks.push(DiagnosticCheck {
+            code: "home".to_owned(),
+            severity: if root_dir.exists() {
+                DiagnosticSeverity::Ok
+            } else {
+                DiagnosticSeverity::Warn
+            },
+            detail: format!("envlt home: {}", root_dir.display()),
+        });
+
+        let vault_exists = vault_path.exists();
+        checks.push(DiagnosticCheck {
+            code: "vault".to_owned(),
+            severity: if vault_exists {
+                DiagnosticSeverity::Ok
+            } else {
+                DiagnosticSeverity::Warn
+            },
+            detail: if vault_exists {
+                format!("vault found at {}", vault_path.display())
+            } else {
+                format!("vault not found at {}", vault_path.display())
+            },
+        });
+
+        checks.push(DiagnosticCheck {
+            code: "backup".to_owned(),
+            severity: if backup_path.exists() {
+                DiagnosticSeverity::Ok
+            } else {
+                DiagnosticSeverity::Warn
+            },
+            detail: if backup_path.exists() {
+                format!("backup found at {}", backup_path.display())
+            } else {
+                format!("backup not found at {}", backup_path.display())
+            },
+        });
+
+        let mut loaded_project_names = None;
+        if vault_exists {
+            match passphrase {
+                Some(passphrase) => match self.store.load(passphrase) {
+                    Ok(vault) => {
+                        let project_names = vault.projects.keys().cloned().collect::<Vec<_>>();
+                        checks.push(DiagnosticCheck {
+                            code: "decrypt".to_owned(),
+                            severity: DiagnosticSeverity::Ok,
+                            detail: format!(
+                                "vault decrypted successfully ({} projects)",
+                                project_names.len()
+                            ),
+                        });
+                        loaded_project_names = Some(project_names);
+                    }
+                    Err(error) => checks.push(DiagnosticCheck {
+                        code: "decrypt".to_owned(),
+                        severity: DiagnosticSeverity::Error,
+                        detail: error.to_string(),
+                    }),
+                },
+                None => checks.push(DiagnosticCheck {
+                    code: "decrypt".to_owned(),
+                    severity: DiagnosticSeverity::Warn,
+                    detail: "vault exists but no passphrase was provided".to_owned(),
+                }),
+            }
+        }
+
+        let current_dir = match current_dir {
+            Some(path) => path.to_path_buf(),
+            None => match env::current_dir() {
+                Ok(path) => path,
+                Err(error) => {
+                    checks.push(DiagnosticCheck {
+                        code: "cwd".to_owned(),
+                        severity: DiagnosticSeverity::Error,
+                        detail: error.to_string(),
+                    });
+                    return DoctorReport { checks };
+                }
+            },
+        };
+
+        match read_project_link(&current_dir) {
+            Ok(Some(project)) => {
+                checks.push(DiagnosticCheck {
+                    code: "link".to_owned(),
+                    severity: DiagnosticSeverity::Ok,
+                    detail: format!(
+                        ".envlt-link points to project '{project}' in {}",
+                        current_dir.display()
+                    ),
+                });
+
+                if let Some(project_names) = loaded_project_names.as_ref() {
+                    let severity = if project_names.iter().any(|name| name == &project) {
+                        DiagnosticSeverity::Ok
+                    } else {
+                        DiagnosticSeverity::Error
+                    };
+                    let detail = if severity == DiagnosticSeverity::Ok {
+                        format!("linked project '{project}' exists in the vault")
+                    } else {
+                        format!("linked project '{project}' was not found in the vault")
+                    };
+                    checks.push(DiagnosticCheck {
+                        code: "link_target".to_owned(),
+                        severity,
+                        detail,
+                    });
+                }
+            }
+            Ok(None) => checks.push(DiagnosticCheck {
+                code: "link".to_owned(),
+                severity: DiagnosticSeverity::Warn,
+                detail: format!("no .envlt-link found in {}", current_dir.display()),
+            }),
+            Err(error) => checks.push(DiagnosticCheck {
+                code: "link".to_owned(),
+                severity: DiagnosticSeverity::Error,
+                detail: error.to_string(),
+            }),
+        }
+
+        DoctorReport { checks }
+    }
 }
 
 #[cfg(test)]
@@ -472,7 +662,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{AppService, ExampleDiff, ProjectDiff, VariableView};
+    use super::{AppService, DiagnosticSeverity, ExampleDiff, ProjectDiff, VariableView};
     use crate::{GenType, VarType, VaultStore};
 
     #[test]
@@ -872,5 +1062,73 @@ mod tests {
                 changed_types: vec!["API_TOKEN".to_owned()],
             }
         );
+    }
+
+    #[test]
+    fn doctor_reports_missing_vault_as_warning_without_errors() {
+        let home = TempDir::new().expect("tempdir");
+        let service = AppService::new(VaultStore::new(home.path().to_path_buf()));
+
+        let report = service.doctor(Some(home.path()), None);
+
+        assert_eq!(report.error_count(), 0);
+        assert!(report.warn_count() >= 2);
+        assert!(!report.has_errors());
+    }
+
+    #[test]
+    fn doctor_reports_link_target_error_when_project_is_missing() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let service = AppService::new(VaultStore::new(home.path().to_path_buf()));
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .write_project_link(project_dir.path(), "ghost-project")
+            .expect("write link");
+
+        let report = service.doctor(Some(project_dir.path()), Some("passphrase"));
+
+        assert!(report.has_errors());
+        assert!(report.checks.iter().any(|check| {
+            check.code == "link_target" && check.severity == DiagnosticSeverity::Error
+        }));
+    }
+
+    #[test]
+    fn doctor_reports_successful_decrypt_and_existing_link_target() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let env_path = project_dir.path().join(".env");
+        std::fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+        let service = AppService::new(VaultStore::new(home.path().to_path_buf()));
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file(
+                "doctor-project",
+                &env_path,
+                Some(project_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add project");
+        service
+            .write_project_link(project_dir.path(), "doctor-project")
+            .expect("write project link");
+
+        let report = service.doctor(Some(project_dir.path()), Some("passphrase"));
+
+        assert_eq!(report.error_count(), 0);
+        assert!(!report.has_errors());
+        assert!(report.ok_count() >= 4);
+        assert!(report
+            .checks
+            .iter()
+            .any(|check| check.code == "decrypt" && check.severity == DiagnosticSeverity::Ok));
+        assert!(report.checks.iter().any(|check| {
+            check.code == "link_target"
+                && check.severity == DiagnosticSeverity::Ok
+                && check.detail.contains("doctor-project")
+        }));
     }
 }

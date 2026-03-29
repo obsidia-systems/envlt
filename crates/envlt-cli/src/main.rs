@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use commands::{
     add::run_add,
     diff::run_diff,
+    doctor::run_doctor,
     export::run_export,
     gen::{run_gen, GenOptions},
     import::run_import,
@@ -45,6 +46,7 @@ fn real_main() -> Result<ExitCode> {
         } => run_add(&service, &project, &file, &from_example, project_path),
         Commands::List => run_list(&service),
         Commands::Vars { project } => run_vars(&service, &project),
+        Commands::Doctor { decrypt } => run_doctor(&service, decrypt),
         Commands::Diff {
             project,
             other_project,
@@ -110,6 +112,10 @@ enum Commands {
         project_path: Option<PathBuf>,
     },
     List,
+    Doctor {
+        #[arg(long)]
+        decrypt: bool,
+    },
     Vars {
         #[arg(long)]
         project: Option<String>,

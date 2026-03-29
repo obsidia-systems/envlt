@@ -1,5 +1,6 @@
 pub mod add;
 pub mod diff;
+pub mod doctor;
 pub mod export;
 pub mod gen;
 pub mod import;

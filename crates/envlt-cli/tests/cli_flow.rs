@@ -106,6 +106,68 @@ fn wrong_passphrase_returns_error() {
 }
 
 #[test]
+fn doctor_reports_missing_vault_without_failing() {
+    let home = TempDir::new().expect("tempdir");
+
+    cli(&home)
+        .arg("doctor")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("summary\t"))
+        .stdout(predicate::str::contains("warn\tvault\tvault not found"));
+}
+
+#[test]
+fn doctor_reports_existing_link_and_decrypts_when_requested() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "doctor-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["doctor", "--decrypt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "ok\tdecrypt\tvault decrypted successfully",
+        ))
+        .stdout(predicate::str::contains(
+            "ok\tlink_target\tlinked project 'doctor-project' exists in the vault",
+        ));
+}
+
+#[test]
+fn doctor_fails_when_link_target_is_missing() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+
+    cli(&home).arg("init").assert().success();
+    fs::write(
+        project_dir.path().join(".envlt-link"),
+        "project = \"ghost-project\"\nenvlt_version = \"1.0\"\n",
+    )
+    .expect("write link");
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["doctor", "--decrypt"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "error\tlink_target\tlinked project 'ghost-project' was not found in the vault",
+        ));
+}
+
+#[test]
 fn set_and_use_can_resolve_project_from_link() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
