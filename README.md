@@ -97,6 +97,21 @@ cargo install --path crates/envlt-cli
 envlt --help
 ```
 
+### Install from GitHub Releases
+
+If a release asset already exists, a user can install `envlt` manually by downloading the archive, extracting the binary, and placing it on their `PATH`.
+
+Example:
+
+```bash
+tar -xzf envlt-linux-x86_64.tar.gz
+chmod +x envlt
+sudo mv envlt /usr/local/bin/envlt
+envlt --help
+```
+
+This is the current public distribution path before Homebrew packaging is added.
+
 ### Development usage from the repository
 
 ```bash
@@ -195,3 +210,4 @@ What still remains:
 - publish the repository and validate GitHub Actions in the remote repo
 - create the first tagged release and inspect generated artifacts
 - define the Homebrew formula/tap around those published artifacts
+- expand release artifacts into an explicit multi-architecture strategy

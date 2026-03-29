@@ -50,6 +50,37 @@ The release workflow currently:
 - uploads workflow artifacts
 - uploads release assets to GitHub Releases
 
+## What users can do today
+
+With the current GitHub release assets, users can:
+
+- download the appropriate `.tar.gz` archive from GitHub Releases
+- extract the `envlt` binary
+- move it into a directory on their `PATH`
+- run `envlt --help`
+
+Example manual install flow on Linux:
+
+```bash
+tar -xzf envlt-linux-x86_64.tar.gz
+chmod +x envlt
+sudo mv envlt /usr/local/bin/envlt
+envlt --help
+```
+
+This means the project already supports manual binary distribution, even though Homebrew and native Linux package-manager installs are not implemented yet.
+
+## Current architecture limitation
+
+The current release workflow does not yet define a full multi-architecture target matrix.
+
+Today:
+
+- the Linux artifact is explicitly named `envlt-linux-x86_64`
+- the macOS artifact is built for the host runner and packaged as a host-specific archive
+
+That means the release process is not yet a complete cross-architecture distribution story. The next packaging step should make architecture explicit in artifact naming and target selection.
+
 ## Release checklist
 
 ### 1. Prepare the repository state
@@ -125,6 +156,7 @@ The release workflow is a baseline, not the final packaging story.
 Still pending after the first successful tagged release:
 
 - refine artifact naming if needed
+- define explicit architecture targets for macOS and Linux
 - decide Homebrew tap structure
 - create the Homebrew formula
 - optionally expand platform matrix later

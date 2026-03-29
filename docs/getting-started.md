@@ -11,6 +11,21 @@ cargo install --path crates/envlt-cli
 envlt --help
 ```
 
+### Install from GitHub Releases
+
+If the project already has published release assets, you can install `envlt` manually from the release archive.
+
+Example on Linux:
+
+```bash
+tar -xzf envlt-linux-x86_64.tar.gz
+chmod +x envlt
+sudo mv envlt /usr/local/bin/envlt
+envlt --help
+```
+
+This is currently a manual binary installation flow, not a native package-manager install.
+
 ### Run without installing
 
 ```bash
@@ -128,6 +143,7 @@ envlt_version = "1.0"
 ## Current limitations
 
 - Homebrew distribution is not published yet
+- release assets are not yet a complete multi-architecture distribution strategy
 - Cloud sync is not implemented
 - Keychain integration is not implemented
 - `gen` still lacks all planned presets
