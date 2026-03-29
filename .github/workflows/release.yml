@@ -30,13 +30,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.75.0
+          toolchain: 1.85.0
 
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@v2
 
       - name: Build release binary
-        run: cargo build --release -p envlt-cli
+        run: cargo build --locked --release -p envlt-cli
 
       - name: Package archive
         shell: bash

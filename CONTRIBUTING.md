@@ -6,7 +6,7 @@ Thanks for your interest in contributing to `envlt`.
 
 Requirements:
 
-- Rust `1.75.0`
+- Rust `1.85.0` or newer
 - `rustfmt`
 - `clippy`
 

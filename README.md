@@ -12,7 +12,7 @@
   <a href="https://github.com/obsidia-systems/envlt/actions/workflows/ci.yml"><img src="https://github.com/obsidia-systems/envlt/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
   <a href="https://github.com/obsidia-systems/envlt"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue" alt="Platform"></a>
-  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.75%2B-orange" alt="Rust 1.75+"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.85%2B-orange" alt="Rust 1.85+"></a>
 </p>
 
 ## Overview
