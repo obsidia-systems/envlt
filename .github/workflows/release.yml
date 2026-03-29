@@ -78,3 +78,64 @@ jobs:
           files: |
             ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
             ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}.sha256
+
+  update-homebrew-tap:
+    name: Open PR in homebrew-tap
+    runs-on: ubuntu-24.04
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compute source tarball SHA256
+        id: source
+        run: |
+          URL="https://github.com/obsidia-systems/envlt/archive/refs/tags/${{ steps.version.outputs.tag }}.tar.gz"
+          curl -Ls "$URL" -o source.tar.gz
+          SHA="$(sha256sum source.tar.gz | awk '{print $1}')"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v5
+        with:
+          repository: obsidia-systems/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Formula/envlt.rb
+        run: |
+          FILE="homebrew-tap/Formula/envlt.rb"
+
+          perl -0pi -e 's/version\s+"[0-9]+\.[0-9]+\.[0-9]+"/version "'"${{ steps.version.outputs.version }}"'"/g' "$FILE"
+          perl -0pi -e 's|url\s+"https://github\.com/obsidia-systems/envlt/archive/refs/tags/v[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz"|url "'"${{ steps.source.outputs.url }}"'"|g' "$FILE"
+          perl -0pi -e 's/sha256\s+"[a-f0-9]{64}"/sha256 "'"${{ steps.source.outputs.sha }}"'"/g' "$FILE"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          branch: chore/envlt-${{ steps.version.outputs.version }}
+          delete-branch: true
+          commit-message: "envlt ${{ steps.version.outputs.version }}"
+          title: "envlt ${{ steps.version.outputs.version }}"
+          body: |
+            Automated formula update from envlt release.
+
+            - Version: ${{ steps.version.outputs.version }}
+            - Source URL: ${{ steps.source.outputs.url }}
+            - SHA256: ${{ steps.source.outputs.sha }}
+          labels: |
+            dependencies
+            homebrew
