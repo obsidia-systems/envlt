@@ -223,6 +223,68 @@ fn save_creates_backup_file() {
 }
 
 #[test]
+fn remove_deletes_project_and_clears_matching_link() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "MODE=dev\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "remove-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .env("ENVLT_REMOVE_CONFIRM", "yes")
+        .args(["remove", "remove-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(".envlt-link cleared"));
+
+    assert!(!project_dir.path().join(".envlt-link").exists());
+
+    cli(&home)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("remove-project").not());
+}
+
+#[test]
+fn remove_can_be_cancelled() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "MODE=dev\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "keep-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .env("ENVLT_REMOVE_CONFIRM", "no")
+        .args(["remove", "keep-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Removal cancelled."));
+
+    cli(&home)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("keep-project"));
+}
+
+#[test]
 fn export_and_import_roundtrip_bundle() {
     let home_a = TempDir::new().expect("tempdir");
     let home_b = TempDir::new().expect("tempdir");

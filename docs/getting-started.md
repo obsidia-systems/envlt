@@ -4,6 +4,13 @@ This guide covers the current supported way to install and use `envlt`.
 
 ## Installation
 
+### Install with Homebrew
+
+```bash
+brew install obsidia-systems/tap/envlt
+envlt --help
+```
+
 ### Install from the repository
 
 ```bash
@@ -121,6 +128,15 @@ envlt export api-payments --out bundle.evlt
 envlt import bundle.evlt
 ```
 
+### Remove a project
+
+```bash
+envlt remove api-payments
+envlt remove api-payments --yes
+```
+
+By default, `envlt` asks for confirmation before deleting a project from the vault.
+
 ### Diagnose the local setup
 
 ```bash
@@ -148,7 +164,7 @@ envlt_version = "1.0"
 
 ## Current limitations
 
-- Homebrew distribution is not published yet
+- the Homebrew formula currently uses prebuilt release assets and may still evolve toward a source-first formula
 - macOS artifacts are not signed or notarized yet, so Gatekeeper may block them until quarantine is removed manually
 - Cloud sync is not implemented
 - Keychain integration is not implemented

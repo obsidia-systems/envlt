@@ -56,6 +56,7 @@ Still intentionally out of scope for now:
 - `.envlt-link` project resolution
 - typed variables: `Secret`, `Config`, `Plain`
 - secret-aware variable listing
+- project removal with confirmation
 - project-to-example and project-to-project diffing
 - secure secret generation with interactive flow
 - encrypted `.evlt` export/import
@@ -68,6 +69,7 @@ envlt init
 envlt add api-payments
 envlt vars --project api-payments
 envlt set --project api-payments PORT=4000
+envlt remove api-payments --yes
 envlt use --project api-payments
 envlt run --project api-payments -- node server.js
 envlt export api-payments --out bundle.evlt
@@ -90,7 +92,14 @@ If the current directory contains `.envlt-link`, these commands can resolve the 
 
 ### Current supported path
 
-Homebrew packaging is not published yet. Today the supported installation path is Cargo:
+Homebrew installation is available and is the recommended install path:
+
+```bash
+brew install obsidia-systems/tap/envlt
+envlt --help
+```
+
+Cargo installation is still supported for contributors and local development:
 
 ```bash
 cargo install --path crates/envlt-cli
@@ -110,7 +119,7 @@ sudo mv envlt /usr/local/bin/envlt
 envlt --help
 ```
 
-This is the current public distribution path before Homebrew packaging is added.
+This remains a supported manual installation path in addition to Homebrew.
 
 On macOS, binaries downloaded from a browser may be blocked by Gatekeeper until the project ships signed and notarized artifacts. For a release you trust, you can remove the quarantine attribute after extracting it:
 
@@ -149,6 +158,7 @@ flowchart LR
 | `envlt init` | Create the encrypted local vault |
 | `envlt add` | Import variables from `.env` or `.env.example` |
 | `envlt list` | List stored projects |
+| `envlt remove` | Remove a stored project |
 | `envlt vars` | Show project variables and types |
 | `envlt diff` | Compare against `.env.example` or another project |
 | `envlt set` | Create or update variables |
@@ -202,7 +212,7 @@ Repository release baseline already includes:
 - CI on Linux and macOS
 - release workflow scaffolding for tagged builds
 
-## Road to Homebrew
+## Distribution Status
 
 What is already ready:
 
@@ -211,10 +221,10 @@ What is already ready:
 - changelog
 - contributor guide
 - CI workflow
-- release workflow skeleton
+- release workflow
+- Homebrew tap and install path
 
 What still remains:
 
-- verify the multi-architecture release matrix in GitHub Releases
-- define the Homebrew formula/tap around published artifacts
+- refine the Homebrew formula toward source-first installation
 - add signing and notarization for macOS artifacts

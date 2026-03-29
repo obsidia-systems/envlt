@@ -13,7 +13,7 @@ It already covers the core local workflow well, but several meaningful features 
 | Area | Status |
 | --- | --- |
 | Local encrypted vault | Done |
-| Core CLI workflow (`init`, `add`, `set`, `use`, `run`, `list`) | Done |
+| Core CLI workflow (`init`, `add`, `set`, `use`, `run`, `list`, `remove`) | Done |
 | `.evlt` export/import | Done |
 | Variable typing and type inference | Done |
 | `.env.example` bootstrap | Done |
@@ -27,7 +27,7 @@ It already covers the core local workflow well, but several meaningful features 
 
 | Item | Why it still matters |
 | --- | --- |
-| Homebrew tap and release artifacts | Required for polished installation |
+| Homebrew formula polish | Improve maintainability and installation robustness |
 | Additional `gen` presets | Still optional if broader generator coverage is needed |
 | Richer `diff` output | Optional only if the product wants more than safe-summary output |
 | Additional output hardening | Important before broader adoption |
@@ -50,11 +50,11 @@ It already covers the core local workflow well, but several meaningful features 
 
 ## Recommended next milestones
 
-### Milestone 1: Release readiness
+### Milestone 1: Distribution polish
 
-- prepare Homebrew packaging
-- refine release artifacts for distribution
-- replace placeholder repository metadata with the real public repository
+- refine the Homebrew formula toward the preferred long-term install strategy
+- strengthen release artifacts for direct downloads
+- add macOS signing and notarization
 
 ### Milestone 2: Hardening
 

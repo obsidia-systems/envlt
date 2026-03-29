@@ -112,6 +112,14 @@ pub fn read_gen_project() -> Result<Option<String>> {
     }
 }
 
+pub fn confirm_action(env_key: Option<&str>, prompt: &str) -> Result<bool> {
+    let value = read_prompt_line(env_key, prompt)?;
+    Ok(matches!(
+        value.to_ascii_lowercase().as_str(),
+        "y" | "yes" | "true" | "1"
+    ))
+}
+
 fn sanitize_env_key(key: &str) -> String {
     key.chars()
         .map(|ch| {

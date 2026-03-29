@@ -8,7 +8,7 @@ pub mod vault;
 
 pub use app::{
     AppService, DiagnosticCheck, DiagnosticSeverity, DoctorReport, ExampleDiff, ProjectDiff,
-    RunEnvironment, VariableView,
+    RemoveProjectResult, RunEnvironment, VariableView,
 };
 pub use env::{parse_env_file, parse_env_str, render_env};
 pub use error::{EnvltError, Result};

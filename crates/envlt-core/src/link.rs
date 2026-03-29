@@ -39,3 +39,13 @@ pub fn read_project_link(project_root: &Path) -> Result<Option<String>> {
     })?;
     Ok(Some(link.project))
 }
+
+pub fn remove_project_link(project_root: &Path) -> Result<bool> {
+    let link_path = project_root.join(LINK_FILE_NAME);
+    if !link_path.exists() {
+        return Ok(false);
+    }
+
+    fs::remove_file(link_path)?;
+    Ok(true)
+}

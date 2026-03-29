@@ -9,7 +9,7 @@ use crate::{
     env::{parse_env_file, render_env},
     error::{EnvltError, Result},
     gen::{generate_value, GenType},
-    link::{read_project_link, write_project_link},
+    link::{read_project_link, remove_project_link, write_project_link},
     vault::{Project, VarType, Variable, VaultStore},
 };
 
@@ -77,6 +77,12 @@ pub struct DiagnosticCheck {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DoctorReport {
     pub checks: Vec<DiagnosticCheck>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveProjectResult {
+    pub project: String,
+    pub removed_link: bool,
 }
 
 impl DoctorReport {
@@ -200,6 +206,32 @@ impl AppService {
 
     pub fn write_project_link(&self, project_root: &Path, project_name: &str) -> Result<()> {
         write_project_link(project_root, project_name)
+    }
+
+    pub fn remove_project(
+        &self,
+        project_name: &str,
+        current_dir: Option<&Path>,
+        passphrase: &str,
+    ) -> Result<RemoveProjectResult> {
+        let mut vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .remove(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+
+        vault.touch();
+        self.store.save(&vault, passphrase)?;
+
+        let removed_link = self.remove_link_if_matches(project_name, current_dir, &project)?;
+
+        Ok(RemoveProjectResult {
+            project: project_name.to_owned(),
+            removed_link,
+        })
     }
 
     pub fn resolve_project_name(
@@ -654,15 +686,38 @@ impl AppService {
 
         DoctorReport { checks }
     }
+
+    fn remove_link_if_matches(
+        &self,
+        project_name: &str,
+        current_dir: Option<&Path>,
+        project: &Project,
+    ) -> Result<bool> {
+        let Some(link_root) = current_dir
+            .map(Path::to_path_buf)
+            .or_else(|| project.path.clone())
+        else {
+            return Ok(false);
+        };
+
+        match read_project_link(&link_root)? {
+            Some(linked_project) if linked_project == project_name => {
+                remove_project_link(&link_root)
+            }
+            _ => Ok(false),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, fs};
 
     use tempfile::TempDir;
 
-    use super::{AppService, DiagnosticSeverity, ExampleDiff, ProjectDiff, VariableView};
+    use super::{
+        AppService, DiagnosticSeverity, ExampleDiff, ProjectDiff, RemoveProjectResult, VariableView,
+    };
     use crate::{GenType, VarType, VaultStore};
 
     #[test]
@@ -1062,6 +1117,85 @@ mod tests {
                 changed_types: vec!["API_TOKEN".to_owned()],
             }
         );
+    }
+
+    #[test]
+    fn remove_project_deletes_project_and_matching_link() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let env_path = project_dir.path().join(".env");
+
+        fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file(
+                "remove-project",
+                &env_path,
+                Some(project_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add project");
+        service
+            .write_project_link(project_dir.path(), "remove-project")
+            .expect("write link");
+
+        let result = service
+            .remove_project("remove-project", Some(project_dir.path()), "passphrase")
+            .expect("remove project");
+
+        assert_eq!(
+            result,
+            RemoveProjectResult {
+                project: "remove-project".to_owned(),
+                removed_link: true,
+            }
+        );
+        assert!(service
+            .project_snapshot("remove-project", "passphrase")
+            .is_err());
+        assert!(!project_dir.path().join(".envlt-link").exists());
+    }
+
+    #[test]
+    fn remove_project_keeps_unrelated_link() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let env_path = project_dir.path().join(".env");
+
+        fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file(
+                "remove-project",
+                &env_path,
+                Some(project_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add project");
+        service
+            .write_project_link(project_dir.path(), "other-project")
+            .expect("write link");
+
+        let result = service
+            .remove_project("remove-project", Some(project_dir.path()), "passphrase")
+            .expect("remove project");
+
+        assert_eq!(
+            result,
+            RemoveProjectResult {
+                project: "remove-project".to_owned(),
+                removed_link: false,
+            }
+        );
+        assert!(project_dir.path().join(".envlt-link").exists());
     }
 
     #[test]

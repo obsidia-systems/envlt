@@ -9,6 +9,7 @@ This document describes the current CLI surface.
 | `envlt init` | Initialize the encrypted vault |
 | `envlt add <project>` | Import `.env` or `.env.example` content |
 | `envlt list` | List stored projects |
+| `envlt remove <project>` | Remove a stored project |
 | `envlt vars` | Show variables and types |
 | `envlt diff` | Compare against `.env.example` or another project |
 | `envlt doctor` | Diagnose the local vault and link state |
@@ -53,6 +54,21 @@ List stored projects.
 ```bash
 envlt list
 ```
+
+### `envlt remove <project> [--yes]`
+
+Remove a project from the vault.
+
+```bash
+envlt remove api-payments
+envlt remove api-payments --yes
+```
+
+Behavior:
+
+- asks for confirmation by default
+- supports `--yes` for automation
+- clears `.envlt-link` when it points to the removed project
 
 ### `envlt vars [--project <name>]`
 

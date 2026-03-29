@@ -14,6 +14,7 @@ use commands::{
     import::run_import,
     init::run_init,
     list::run_list,
+    remove::run_remove,
     run::run_run,
     set::run_set,
     use_cmd::run_use,
@@ -45,6 +46,7 @@ fn real_main() -> Result<ExitCode> {
             project_path,
         } => run_add(&service, &project, &file, &from_example, project_path),
         Commands::List => run_list(&service),
+        Commands::Remove { project, yes } => run_remove(&service, &project, yes),
         Commands::Vars { project } => run_vars(&service, &project),
         Commands::Doctor { decrypt } => run_doctor(&service, decrypt),
         Commands::Diff {
@@ -114,6 +116,11 @@ enum Commands {
         project_path: Option<PathBuf>,
     },
     List,
+    Remove {
+        project: String,
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     Doctor {
         #[arg(long)]
         decrypt: bool,
