@@ -27,9 +27,7 @@ It already covers the core local workflow well, but several meaningful features 
 
 | Item | Why it still matters |
 | --- | --- |
-| GitHub Actions for CI and release | Required for reliable public distribution |
 | Homebrew tap and release artifacts | Required for polished installation |
-| Better top-level release docs | Required for external users |
 | Additional `gen` presets | Still optional if broader generator coverage is needed |
 | Richer `diff` output | Optional only if the product wants more than safe-summary output |
 | Additional output hardening | Important before broader adoption |
@@ -54,10 +52,9 @@ It already covers the core local workflow well, but several meaningful features 
 
 ### Milestone 1: Release readiness
 
-- finalize the docs set
-- add CI workflows
-- prepare reproducible release builds
 - prepare Homebrew packaging
+- refine release artifacts for distribution
+- replace placeholder repository metadata with the real public repository
 
 ### Milestone 2: Hardening
 

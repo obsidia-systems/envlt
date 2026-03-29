@@ -115,6 +115,8 @@ Primary documents:
 - [Security](docs/security.md)
 - [Roadmap](docs/roadmap.md)
 - [Spec Alignment](docs/spec-alignment.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## Development quality gates
 
@@ -123,3 +125,12 @@ cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
+
+## Release engineering
+
+The repository now includes:
+
+- CI for formatting, Clippy, and tests on Linux and macOS
+- a release workflow skeleton that builds release archives for tagged versions
+
+Homebrew packaging is still the next step, not the current one.
