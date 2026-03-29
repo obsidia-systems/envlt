@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.artifact_name }}
@@ -44,15 +47,21 @@ jobs:
           mkdir -p dist
           cp target/release/${{ matrix.binary_name }} dist/${{ matrix.binary_name }}
           tar -czf ${{ matrix.artifact_name }}.${{ matrix.archive_ext }} -C dist ${{ matrix.binary_name }}
+          shasum -a 256 ${{ matrix.artifact_name }}.${{ matrix.archive_ext }} > ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}.sha256
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+          path: |
+            ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+            ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}.sha256
 
       - name: Upload release asset
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+          generate_release_notes: true
+          files: |
+            ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+            ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}.sha256

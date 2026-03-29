@@ -10,8 +10,9 @@ This directory contains the current technical documentation for `envlt`.
 4. [Security](security.md)
 5. [Roadmap](roadmap.md)
 6. [Spec Alignment](spec-alignment.md)
-7. [Contributing](../CONTRIBUTING.md)
-8. [Changelog](../CHANGELOG.md)
+7. [Releasing](releasing.md)
+8. [Contributing](../CONTRIBUTING.md)
+9. [Changelog](../CHANGELOG.md)
 
 Historical source document:
 
@@ -41,6 +42,7 @@ flowchart TD
 | `security.md` | Current security model and operational guidance |
 | `roadmap.md` | What is still missing and what is planned next |
 | `spec-alignment.md` | Verification of the current implementation against the original specification |
+| `releasing.md` | Release checklist, required inputs, and release workflow expectations |
 | `../CONTRIBUTING.md` | Contributor expectations and local development workflow |
 | `../CHANGELOG.md` | Project-level change history |
 
