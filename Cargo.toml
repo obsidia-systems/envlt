@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/example/envlt"
+repository = "https://github.com/obsidia-systems/envlt"
 rust-version = "1.75"
 version = "0.1.0"
 
