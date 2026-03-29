@@ -1,0 +1,205 @@
+# CLI Reference
+
+This document describes the current CLI surface.
+
+## Command summary
+
+| Command | Description |
+| --- | --- |
+| `envlt init` | Initialize the encrypted vault |
+| `envlt add <project>` | Import `.env` or `.env.example` content |
+| `envlt list` | List stored projects |
+| `envlt vars` | Show variables and types |
+| `envlt diff` | Compare against `.env.example` or another project |
+| `envlt doctor` | Diagnose the local vault and link state |
+| `envlt set` | Create or update a variable |
+| `envlt use` | Write a `.env` file from the vault |
+| `envlt run` | Run a child process with injected variables |
+| `envlt gen` | Generate secure values |
+| `envlt export` | Export a project to `.evlt` |
+| `envlt import` | Import a `.evlt` bundle |
+
+## Commands
+
+### `envlt init`
+
+Initialize the local encrypted vault.
+
+```bash
+envlt init
+```
+
+Behavior:
+
+- creates the `envlt` home directory
+- creates `vault.age`
+- prompts for passphrase confirmation
+
+### `envlt add <project>`
+
+Import variables into the vault and create `.envlt-link`.
+
+```bash
+envlt add api-payments
+envlt add api-payments --file .env.local
+envlt add api-payments --from-example .env.example
+envlt add api-payments --project-path /path/to/project
+```
+
+### `envlt list`
+
+List stored projects.
+
+```bash
+envlt list
+```
+
+### `envlt vars [--project <name>]`
+
+Show variable names, types, and masked or visible values depending on type.
+
+```bash
+envlt vars --project api-payments
+envlt vars
+```
+
+Output behavior:
+
+- `Secret` values are masked
+- `Config` and `Plain` values are shown
+
+### `envlt diff`
+
+#### Compare against `.env.example`
+
+```bash
+envlt diff --project api-payments --example .env.example
+envlt diff --example .env.example
+```
+
+Reports:
+
+- shared keys
+- keys missing from the vault
+- keys present only in the vault
+
+#### Compare two projects
+
+```bash
+envlt diff --project api-payments api-auth
+```
+
+Reports:
+
+- shared keys
+- keys with changed values
+- keys with changed types
+- keys only on the left project
+- keys only on the right project
+
+### `envlt doctor [--decrypt]`
+
+Run local diagnostics.
+
+```bash
+envlt doctor
+envlt doctor --decrypt
+```
+
+Checks currently include:
+
+- `envlt` home path
+- vault presence
+- backup presence
+- `.envlt-link` state in the current directory
+- vault decryption and linked-project validation when `--decrypt` is used
+
+Exit behavior:
+
+- returns success when there are only warnings
+- returns non-zero when real errors are detected
+
+### `envlt set [--project <name>] <KEY=VALUE>`
+
+Create or update a variable.
+
+```bash
+envlt set --project api-payments PORT=4000
+envlt set --project api-payments --secret JWT_SECRET=supersecret
+envlt set --project api-payments --plain APP_NAME=my-app
+```
+
+Type flags:
+
+- `--secret`
+- `--config`
+- `--plain`
+
+### `envlt use [--project <name>] [--out <path>]`
+
+Write a `.env` file from the vault.
+
+```bash
+envlt use --project api-payments
+envlt use --project api-payments --out .env.local
+envlt use
+```
+
+### `envlt run [--project <name>] -- <command> [args...]`
+
+Run a child process with variables injected from the vault.
+
+```bash
+envlt run --project api-payments -- node server.js
+envlt run -- npm run dev
+```
+
+### `envlt gen`
+
+Generate secure values.
+
+```bash
+envlt gen --list-types
+envlt gen
+envlt gen --type jwt-secret
+envlt gen --type password
+envlt gen --len 64 --hex
+envlt gen --len 32 --symbols
+envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --silent
+```
+
+Supported presets:
+
+- `jwt-secret`
+- `uuid`
+- `api-key`
+- `token`
+- `password`
+
+Current behavior:
+
+- supports flag-driven generation
+- supports a guided interactive path
+- can store the generated value directly in the vault
+
+### `envlt export <project> --out <path>`
+
+Export a project as an encrypted `.evlt` bundle.
+
+```bash
+envlt export api-payments --out bundle.evlt
+```
+
+### `envlt import <path> [--overwrite]`
+
+Import a bundle into the local vault.
+
+```bash
+envlt import bundle.evlt
+envlt import bundle.evlt --overwrite
+```
+
+Behavior:
+
+- fails by default if the project already exists
+- replaces the full project snapshot when `--overwrite` is used

@@ -1,56 +1,55 @@
-# Seguridad actual
+# Security
 
-Este documento resume el modelo de seguridad implementado hoy en `envlt`.
+This document summarizes the current security model implemented in `envlt`.
 
-## Qué protege hoy
+## Current security properties
 
-### Vault local cifrado
+### Encrypted local source of truth
 
-- el vault se guarda en `~/.envlt/vault.age`
-- el contenido del vault no vive en texto plano en disco
-- el acceso depende de la passphrase del vault
+- the vault is stored at `~/.envlt/vault.age`
+- sensitive project state is not stored as plaintext on disk
+- access depends on the vault passphrase
 
-### Backup básico
+### Basic backup strategy
 
-- cuando el vault se sobrescribe, `envlt` crea `vault.age.bak`
-- esto ayuda en recuperación básica ante errores operativos
+- when an existing vault is overwritten, `envlt` creates `vault.age.bak`
+- this helps basic local recovery after accidental corruption or operational mistakes
 
-### Bundles separados del vault
+### Separate bundle protection
 
-- `export` genera bundles `.evlt`
-- los bundles usan una passphrase distinta a la del vault
-- compartir un bundle no obliga a compartir la passphrase maestra del vault
+- exported `.evlt` bundles use a passphrase independent from the vault passphrase
+- sharing a bundle does not require sharing the master vault passphrase
 
-### Menor exposición en disco
+### Reduced disk exposure
 
-- `envlt run` inyecta variables al proceso hijo sin escribir `.env`
-- `envlt use` sí escribe un archivo `.env`, por lo que debe tratarse como artefacto temporal
+- `envlt run` injects variables into a child process without writing a `.env` file
+- `envlt use` writes a `.env` file and should therefore be treated as a temporary artifact
 
-### Salidas seguras por defecto
+### Safer defaults in output
 
-- `vars` enmascara valores `Secret`
-- `diff` no imprime valores
-- `doctor` reporta estado y errores, no secretos
+- `vars` masks `Secret` values
+- `diff` does not print secret values
+- `doctor` reports state and errors, not secret payloads
 
-## Qué no resuelve todavía
+## Current limitations
 
-- no hay integración con Keychain
-- no hay zeroization explícita de secretos en memoria
-- no hay sync con nube ni resolución de conflictos remotos
-- no hay redacción parcial sofisticada de secretos en todas las salidas
-- no hay política completa de migraciones y recovery avanzado
+- no Keychain integration
+- no explicit zeroization strategy in memory
+- no cloud sync or remote conflict resolution
+- no advanced partial-redaction policy across every output path
+- no full migration and disaster-recovery subsystem yet
 
-## Recomendaciones operativas actuales
+## Operational guidance
 
-- usa una passphrase fuerte para el vault
-- evita dejar `.env` materializados más tiempo del necesario
-- usa `envlt run` cuando no necesites archivo en disco
-- comparte bundles `.evlt` solo por canales razonables y separa siempre la passphrase
-- conserva backups del home de `envlt` si el vault es importante para tu flujo
+- use a strong vault passphrase
+- avoid leaving materialized `.env` files around longer than needed
+- prefer `envlt run` when a file on disk is not required
+- share `.evlt` bundles and bundle passphrases through separate channels
+- keep backups of the `envlt` home directory if the vault matters to your workflow
 
-## Próximos endurecimientos previstos
+## Planned hardening areas
 
-- posible integración con `secrecy` / `zeroize`
-- Keychain para macOS
-- validación más estricta de bundles y recovery
-- mejor política de salidas seguras y diagnósticos
+- possible integration with `secrecy` and `zeroize`
+- Keychain support on macOS
+- stricter bundle validation and better recovery paths
+- richer safe-output rules for diagnostics and diffing

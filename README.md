@@ -1,109 +1,122 @@
 # envlt
 
-`envlt` es una CLI local-first escrita en Rust para guardar variables de entorno en un vault cifrado, regenerar `.env` bajo demanda y compartir proyectos mediante bundles `.evlt`.
+`envlt` is a local-first Rust CLI for managing environment variables in an encrypted vault, materializing `.env` files on demand, and sharing project snapshots through portable `.evlt` bundles.
 
-## Estado actual
+## Status
 
-Hoy el proyecto ya tiene:
+The implementation is beyond the original Phase 1 scope:
 
-- Fase 1 completada y extendida
-- Fase 2 funcional con `export` / `import`
-- parte importante de Fase 3 ya implementada
+- Phase 1: complete and extended
+- Phase 2: implemented
+- Phase 3: partially implemented and already usable
 
-Lo que ya funciona:
+The project is currently in the hardening and release-engineering stage before public distribution.
 
-- vault local cifrado con `age`
-- importación desde `.env` y `.env.example`
-- `.envlt-link` para resolver proyecto automáticamente
-- `vars`, `diff`, `doctor`, `gen`
-- exportación e importación de bundles `.evlt`
-- backups básicos del vault
+## Current capabilities
 
-## Instalación local
+- Encrypted local vault backed by `age`
+- Atomic vault writes with a basic `vault.age.bak` backup
+- Import from `.env` and `.env.example`
+- Project resolution through `.envlt-link`
+- Variable typing with `Secret`, `Config`, and `Plain`
+- Variable inspection with secret masking
+- Project-to-example and project-to-project diffing
+- Secret generation with presets and guided interactive flow
+- Project export and import via `.evlt` bundles
+- Local diagnostics through `envlt doctor`
+- Process execution with in-memory environment injection
 
-Mientras preparamos la distribución por Homebrew, hoy puedes usarlo así:
-
-### Desde el repo
-
-```bash
-cargo run -p envlt-cli -- --help
-```
-
-### Instalación local con Cargo
-
-```bash
-cargo install --path crates/envlt-cli
-envlt --help
-```
-
-Requisitos actuales:
-
-- Rust toolchain compatible con el workspace
-- macOS o Linux para el flujo validado hoy
-
-## Flujo rápido
+## Quick start
 
 ```bash
 envlt init
 envlt add api-payments
-envlt list
 envlt vars --project api-payments
 envlt set --project api-payments PORT=4000
 envlt use --project api-payments
 envlt run --project api-payments -- node server.js
 envlt export api-payments --out bundle.evlt
 envlt import bundle.evlt
-envlt doctor
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --silent
+envlt doctor --decrypt
 ```
 
-Si existe `.envlt-link` en el directorio actual, `vars`, `diff`, `set`, `use`, `run` y parte del flujo de `gen` pueden resolver el proyecto sin `--project`.
+If the current directory contains `.envlt-link`, several commands can resolve the project automatically: `vars`, `diff`, `set`, `use`, `run`, and part of the `gen` flow.
 
-## Comandos principales
+## Installation
 
-- `envlt init`: crea el vault cifrado local
-- `envlt add`: importa un `.env` o `.env.example`
-- `envlt list`: lista proyectos del vault
-- `envlt vars`: muestra variables y tipos
-- `envlt diff`: compara contra `.env.example` o contra otro proyecto
-- `envlt set`: crea o actualiza variables con tipo opcional
-- `envlt use`: materializa un `.env`
-- `envlt run`: ejecuta un comando con variables inyectadas
-- `envlt gen`: genera valores seguros y puede guardarlos en el vault
-- `envlt export` / `envlt import`: comparte proyectos vía bundles `.evlt`
-- `envlt doctor`: diagnostica vault, backup y `.envlt-link`
+Homebrew packaging is planned but not published yet. Today, the supported installation path is Cargo:
 
-## Seguridad hoy
+```bash
+cargo install --path crates/envlt-cli
+envlt --help
+```
 
-- el vault vive cifrado en `~/.envlt/vault.age`
-- el backup básico se guarda como `~/.envlt/vault.age.bak`
-- `envlt run` inyecta variables sin escribir `.env` en disco
-- los bundles `.evlt` usan passphrase separada del vault
-- `vars` enmascara secretos y `diff` no imprime valores sensibles
+For development usage directly from the repository:
 
-Detalle adicional en [docs/security.md](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/security.md).
+```bash
+cargo run -p envlt-cli -- --help
+```
 
-## Limitaciones actuales
+## How it works
 
-- todavía no hay sync con nube
-- todavía no hay Keychain
-- `gen` no tiene aún todos los presets del PDD
-- `diff` todavía no muestra un before/after detallado
-- el README describe el producto actual, pero la distribución pública todavía está en preparación
+```mermaid
+flowchart LR
+    A[.env or .env.example] --> B[envlt add]
+    B --> C[Encrypted vault.age]
+    C --> D[envlt use]
+    C --> E[envlt run]
+    C --> F[envlt export]
+    F --> G[Portable .evlt bundle]
+    G --> H[envlt import]
+    H --> C
+```
 
-## Documentación
+## Command overview
 
-- [Uso actual](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/usage.md)
-- [Estado del proyecto](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/status.md)
-- [Plan siguiente de implementación](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/next-implementation-plan.md)
-- [Plan de Fase 1](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/phase-1-implementation-plan.md)
-- [Definición del proyecto](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/project-definition.md)
-- [Notas de seguridad](/Users/kevinx/Developer/Projects/OBSIDIA/envlt/docs/security.md)
+| Command | Purpose |
+| --- | --- |
+| `envlt init` | Create the encrypted local vault |
+| `envlt add` | Import variables from `.env` or `.env.example` |
+| `envlt list` | List stored projects |
+| `envlt vars` | Show project variables and their types |
+| `envlt diff` | Compare against `.env.example` or another project |
+| `envlt set` | Create or update variables |
+| `envlt use` | Materialize a `.env` file |
+| `envlt run` | Run a child process with injected variables |
+| `envlt gen` | Generate secure values and optionally store them |
+| `envlt export` | Export a project to `.evlt` |
+| `envlt import` | Import a `.evlt` bundle |
+| `envlt doctor` | Diagnose vault and project-link state |
 
-## Calidad
+## Security model
 
-El workspace se valida actualmente con:
+- The source of truth is an encrypted local vault at `~/.envlt/vault.age`
+- Bundles use a passphrase separate from the main vault passphrase
+- `envlt run` avoids writing `.env` files to disk
+- `vars` masks `Secret` values
+- `diff` does not print secret values
 
-- `cargo fmt --all`
-- `cargo clippy --all-targets --all-features -- -D warnings`
-- `cargo test`
+See the full security notes in [Documentation Index](docs/README.md).
+
+## Documentation
+
+Start with the docs index:
+
+- [Documentation Index](docs/README.md)
+
+Primary documents:
+
+- [Getting Started](docs/getting-started.md)
+- [CLI Reference](docs/cli-reference.md)
+- [Architecture](docs/architecture.md)
+- [Security](docs/security.md)
+- [Roadmap](docs/roadmap.md)
+- [Spec Alignment](docs/spec-alignment.md)
+
+## Development quality gates
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+```
