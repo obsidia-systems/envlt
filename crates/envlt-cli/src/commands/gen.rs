@@ -22,7 +22,7 @@ pub struct GenOptions<'a> {
     pub silent: bool,
 }
 
-impl<'a> GenOptions<'a> {
+impl GenOptions<'_> {
     fn custom_mode_enabled(&self) -> bool {
         self.len.is_some()
     }
