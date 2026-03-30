@@ -10,7 +10,7 @@ pub fn run_import(
     file: &std::path::Path,
     overwrite: bool,
 ) -> Result<ExitCode> {
-    let vault_passphrase = read_passphrase(false)?;
+    let vault_passphrase = read_passphrase(service.store(), false)?;
     let bundle_passphrase = read_bundle_passphrase(false)?;
     let bundle = fs::read(file)?;
     let project =

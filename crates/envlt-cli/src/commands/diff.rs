@@ -17,7 +17,7 @@ pub fn run_diff(
         ));
     }
 
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
 
     if let Some(example) = example {

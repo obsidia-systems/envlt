@@ -1,15 +1,50 @@
 use std::io::{self, Write};
 
 use anyhow::{anyhow, Result};
-use envlt_core::VarType;
+use envlt_core::{load_stored_passphrase, VarType, VaultStore};
 
-pub fn read_passphrase(confirm: bool) -> Result<String> {
+pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<String> {
+    if let Some(passphrase) = read_env_passphrase()? {
+        return Ok(passphrase);
+    }
+
+    match load_stored_passphrase(store) {
+        Ok(Some(passphrase)) => return Ok(passphrase),
+        Ok(None) => {}
+        Err(_) => {}
+    }
+
+    prompt_passphrase(confirm)
+}
+
+pub fn read_passphrase_without_keyring(confirm: bool) -> Result<String> {
+    if let Some(passphrase) = read_env_passphrase()? {
+        return Ok(passphrase);
+    }
+
+    prompt_passphrase(confirm)
+}
+
+pub fn read_passphrase_if_available(store: &VaultStore) -> Result<Option<String>> {
+    if let Some(passphrase) = read_env_passphrase()? {
+        return Ok(Some(passphrase));
+    }
+
+    Ok(load_stored_passphrase(store)?)
+}
+
+fn read_env_passphrase() -> Result<Option<String>> {
     if let Some(passphrase) = std::env::var_os("ENVLT_PASSPHRASE") {
         return passphrase
             .into_string()
+            .map(Some)
             .map_err(|_| anyhow!("ENVLT_PASSPHRASE contains invalid UTF-8"));
     }
 
+    Ok(None)
+}
+
+fn prompt_passphrase(confirm: bool) -> Result<String> {
     let passphrase = rpassword::prompt_password("Vault passphrase: ")?;
     if confirm {
         let confirmation = rpassword::prompt_password("Confirm passphrase: ")?;

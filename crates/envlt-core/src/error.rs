@@ -50,6 +50,8 @@ pub enum EnvltError {
     UnsupportedGenType { gen_type: String },
     #[error("invalid generator length: {length}")]
     InvalidGenLength { length: usize },
+    #[error("keyring error: {message}")]
+    Keyring { message: String },
     #[error("vault passphrase is invalid or the vault is corrupted")]
     InvalidPassphrase,
     #[error("missing command to run")]

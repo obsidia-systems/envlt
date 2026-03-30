@@ -6,7 +6,7 @@ use envlt_core::{AppService, VarType};
 use crate::cli::read_passphrase;
 
 pub fn run_vars(service: &AppService, project: &Option<String>) -> Result<ExitCode> {
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let variables = service.project_variable_views(&project, &passphrase)?;
 

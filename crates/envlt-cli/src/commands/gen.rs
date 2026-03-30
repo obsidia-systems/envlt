@@ -76,7 +76,7 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
 
     match save_target {
         Some((key, project)) => {
-            let passphrase = read_passphrase(false)?;
+            let passphrase = read_passphrase(service.store(), false)?;
             let var_type = if options.custom_mode_enabled() {
                 None
             } else {

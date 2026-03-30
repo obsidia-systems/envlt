@@ -1,4 +1,5 @@
 pub mod add;
+pub mod auth;
 pub mod diff;
 pub mod doctor;
 pub mod export;

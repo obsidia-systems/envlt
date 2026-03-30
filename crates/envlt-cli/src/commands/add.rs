@@ -16,7 +16,7 @@ pub fn run_add(
     from_example: &Option<PathBuf>,
     project_path: Option<PathBuf>,
 ) -> Result<ExitCode> {
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let cwd = env::current_dir()?;
     let project_root = project_path.unwrap_or(cwd);
 

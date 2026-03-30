@@ -257,6 +257,10 @@ impl AppService {
         Ok(vault.projects.into_values().collect())
     }
 
+    pub fn verify_vault_access(&self, passphrase: &str) -> Result<()> {
+        self.store.load(passphrase).map(|_| ())
+    }
+
     pub fn project_snapshot(&self, project_name: &str, passphrase: &str) -> Result<Project> {
         let vault = self.store.load(passphrase)?;
         vault

@@ -7,6 +7,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{
     add::run_add,
+    auth::{run_auth_clear, run_auth_save, run_auth_status},
     diff::run_diff,
     doctor::run_doctor,
     export::run_export,
@@ -39,6 +40,11 @@ fn real_main() -> Result<ExitCode> {
 
     match args.command {
         Commands::Init => run_init(&service),
+        Commands::Auth { command } => match command {
+            AuthCommands::Save => run_auth_save(&service),
+            AuthCommands::Clear => run_auth_clear(&service),
+            AuthCommands::Status => run_auth_status(&service),
+        },
         Commands::Add {
             project,
             file,
@@ -106,6 +112,14 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    #[command(
+        about = "Manage stored vault authentication",
+        long_about = "Manage the vault passphrase in the system keyring. Saved credentials are scoped to the current envlt home directory and allow later commands to run without prompting for the passphrase each time."
+    )]
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommands,
+    },
     #[command(about = "Initialize the encrypted local vault")]
     Init,
     #[command(
@@ -292,4 +306,20 @@ enum Commands {
         )]
         command: Vec<String>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum AuthCommands {
+    #[command(
+        about = "Save the current vault passphrase to the system keyring",
+        long_about = "Read the vault passphrase from ENVLT_PASSPHRASE or an interactive prompt, verify that it can decrypt the current vault, and then save it to the system keyring."
+    )]
+    Save,
+    #[command(about = "Remove the stored vault passphrase from the system keyring")]
+    Clear,
+    #[command(
+        about = "Show whether auth sources are available",
+        long_about = "Report whether ENVLT_PASSPHRASE is set and whether a stored vault passphrase exists in the system keyring for the current envlt home."
+    )]
+    Status,
 }

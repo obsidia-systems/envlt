@@ -11,7 +11,7 @@ pub fn run_run(
     command: &[String],
 ) -> Result<ExitCode> {
     let program = command.first().ok_or(EnvltError::MissingCommand)?;
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let env = service.build_run_environment(&project, &passphrase)?;
 

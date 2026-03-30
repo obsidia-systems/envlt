@@ -32,7 +32,7 @@ It is designed for the local development use case:
 - Local-first: no account, no remote service, no required network dependency
 - Safer by default: encrypted vault, masked secret output, secure generator behavior
 - Portable: share project snapshots with `.evlt` bundles
-- Practical: use `run`, `use`, `diff`, `vars`, `gen`, and `doctor` from a single CLI
+- Practical: use `run`, `use`, `diff`, `vars`, `gen`, `doctor`, and `auth` from a single CLI
 
 ## Status
 
@@ -45,7 +45,6 @@ Current implementation state:
 Still intentionally out of scope for now:
 
 - cloud sync
-- Keychain integration
 - GUI app
 
 ## Features
@@ -55,6 +54,7 @@ Still intentionally out of scope for now:
 - `.env` and `.env.example` import
 - `.envlt-link` project resolution
 - typed variables: `Secret`, `Config`, `Plain`
+- optional system keyring support for vault passphrase reuse
 - secret-aware variable listing
 - project removal with confirmation
 - project-to-example and project-to-project diffing
@@ -66,6 +66,7 @@ Still intentionally out of scope for now:
 
 ```bash
 envlt init
+envlt auth save
 envlt add api-payments
 envlt vars --project api-payments
 envlt set --project api-payments PORT=4000
@@ -156,6 +157,7 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `envlt init` | Create the encrypted local vault |
+| `envlt auth` | Manage stored vault authentication |
 | `envlt add` | Import variables from `.env` or `.env.example` |
 | `envlt list` | List stored projects |
 | `envlt remove` | Remove a stored project |
@@ -172,6 +174,7 @@ flowchart LR
 ## Security Notes
 
 - the source of truth is an encrypted local vault at `~/.envlt/vault.age`
+- vault passphrases can optionally be stored in the system keyring for the current `ENVLT_HOME`
 - `envlt run` avoids writing `.env` files to disk
 - bundles use a passphrase independent from the main vault passphrase
 - `vars` masks `Secret` values

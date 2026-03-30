@@ -3,12 +3,13 @@ use std::process::ExitCode;
 use anyhow::Result;
 use envlt_core::AppService;
 
-use crate::cli::read_passphrase;
+use crate::cli::read_passphrase_if_available;
 
 pub fn run_doctor(service: &AppService, decrypt: bool) -> Result<ExitCode> {
-    let env_passphrase_present = std::env::var_os("ENVLT_PASSPHRASE").is_some();
-    let passphrase = if decrypt || env_passphrase_present {
-        Some(read_passphrase(false)?)
+    let env_or_keyring_available = std::env::var_os("ENVLT_PASSPHRASE").is_some()
+        || envlt_core::load_stored_passphrase(service.store())?.is_some();
+    let passphrase = if decrypt || env_or_keyring_available {
+        read_passphrase_if_available(service.store())?
     } else {
         None
     };

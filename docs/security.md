@@ -10,6 +10,12 @@ This document summarizes the current security model implemented in `envlt`.
 - sensitive project state is not stored as plaintext on disk
 - access depends on the vault passphrase
 
+### Optional system keyring support
+
+- `envlt auth save` can store the vault passphrase in the operating system keyring
+- the stored credential is scoped to the current `ENVLT_HOME`
+- `ENVLT_PASSPHRASE` still takes precedence over the keyring when both exist
+
 ### Basic backup strategy
 
 - when an existing vault is overwritten, `envlt` creates `vault.age.bak`
@@ -33,7 +39,6 @@ This document summarizes the current security model implemented in `envlt`.
 
 ## Current limitations
 
-- no Keychain integration
 - no explicit zeroization strategy in memory
 - no cloud sync or remote conflict resolution
 - no advanced partial-redaction policy across every output path
@@ -42,6 +47,7 @@ This document summarizes the current security model implemented in `envlt`.
 ## Operational guidance
 
 - use a strong vault passphrase
+- treat system session security as part of the trust boundary when using `envlt auth save`
 - avoid leaving materialized `.env` files around longer than needed
 - prefer `envlt run` when a file on disk is not required
 - share `.evlt` bundles and bundle passphrases through separate channels
@@ -50,6 +56,6 @@ This document summarizes the current security model implemented in `envlt`.
 ## Planned hardening areas
 
 - possible integration with `secrecy` and `zeroize`
-- Keychain support on macOS
+- deeper secure-store hardening and additional auth lifecycle commands
 - stricter bundle validation and better recovery paths
 - richer safe-output rules for diagnostics and diffing

@@ -17,7 +17,7 @@ It does **not** yet match the complete product vision from the original project 
 | Phase 3 variable typing | Implemented for the current milestone | `VarType`, inference, `add --from-example`, `diff`, and `gen` are implemented and usable |
 | Phase 4 cloud sync | Missing | Intentionally deferred |
 | Phase 5 release/distribution | Partial | CI, tagged releases, and Homebrew now exist; signing, notarization, and broader packaging are still missing |
-| Phase 6 Keychain | Missing | Planned, not started |
+| Phase 6 Keychain | Partial | Basic system keyring support exists; the broader auth feature set is still incomplete |
 | Phase 7 GUI | Missing | Planned, not started |
 
 ## Implemented vs original definition
@@ -38,6 +38,9 @@ It does **not** yet match the complete product vision from the original project 
 - project-to-project `diff`
 - `gen`
 - `doctor`
+- `auth save`
+- `auth clear`
+- `auth status`
 - `.envlt-link`
 - typed variables
 - basic vault backup
@@ -50,7 +53,6 @@ It does **not** yet match the complete product vision from the original project 
 - conflict resolution for external vaults
 - `auth rotate`
 - `auth generate`
-- `auth status`
 - `auth keychain enable`
 - `auth keychain disable`
 - GUI crate and application
@@ -65,7 +67,7 @@ The current implementation chose to:
 - advance deeper into local CLI usability
 - defer cloud sync
 - defer GUI
-- defer Keychain
+- implement basic keyring support before the wider auth feature set
 
 This is a reasonable product decision because it improves the installable local-first story before adding higher-complexity surface area.
 
@@ -91,7 +93,7 @@ What remains in this area is expansion, not baseline completeness:
 | Secret generation | Strong baseline, not exhaustive |
 | Release engineering | In progress |
 | Cloud sync | Not started |
-| Keychain | Not started |
+| Keychain | Started |
 | GUI | Not started |
 
 ## Practical answer

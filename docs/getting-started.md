@@ -82,9 +82,12 @@ sequenceDiagram
 
 ```bash
 envlt init
+envlt auth save
 envlt add api-payments
 envlt vars --project api-payments
 ```
+
+Use `envlt auth save` if you want later commands to load the vault passphrase from the system keyring instead of prompting every time.
 
 ### Bootstrap from `.env.example`
 
@@ -144,6 +147,20 @@ envlt doctor
 envlt doctor --decrypt
 ```
 
+### Save the vault passphrase to the system keyring
+
+```bash
+envlt auth save
+envlt auth status
+envlt auth clear
+```
+
+Resolution order for vault access is:
+
+- `ENVLT_PASSPHRASE`
+- stored system keyring credential
+- interactive prompt
+
 ## Automatic project resolution
 
 When a directory contains `.envlt-link`, these commands can resolve the project automatically:
@@ -167,6 +184,5 @@ envlt_version = "1.0"
 - the Homebrew formula currently uses prebuilt release assets and may still evolve toward a source-first formula
 - macOS artifacts are not signed or notarized yet, so Gatekeeper may block them until quarantine is removed manually
 - Cloud sync is not implemented
-- Keychain integration is not implemented
 - `gen` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone

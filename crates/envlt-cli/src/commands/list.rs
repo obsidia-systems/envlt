@@ -6,7 +6,7 @@ use envlt_core::AppService;
 use crate::cli::read_passphrase;
 
 pub fn run_list(service: &AppService) -> Result<ExitCode> {
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let projects = service.list_projects(&passphrase)?;
 
     if projects.is_empty() {

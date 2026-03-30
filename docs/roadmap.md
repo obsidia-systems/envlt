@@ -20,6 +20,7 @@ It already covers the core local workflow well, but several meaningful features 
 | Diffing | Done with a safe-summary baseline |
 | Secret generation | Done with secure storage defaults |
 | Diagnostics with `doctor` | Done |
+| System keyring integration | Done |
 
 ## What is still missing
 
@@ -36,7 +37,6 @@ It already covers the core local workflow well, but several meaningful features 
 
 | Item | Status |
 | --- | --- |
-| Keychain integration | Not implemented |
 | Secret zeroization strategy | Not implemented |
 | More robust recovery and validation | Partial |
 
@@ -64,7 +64,7 @@ It already covers the core local workflow well, but several meaningful features 
 
 ### Milestone 3: Convenience
 
-- Keychain integration
+- additional auth lifecycle commands beyond `auth save`, `auth clear`, and `auth status`
 - more `gen` presets
 - optional richer `diff` UX beyond the current safe-summary design
 
@@ -80,7 +80,7 @@ It already covers the core local workflow well, but several meaningful features 
 flowchart TD
     A[Current usable CLI] --> B[Release readiness]
     B --> C[Hardening]
-    C --> D[Keychain]
+    C --> D[Auth polish]
     D --> E[Cloud sync]
     E --> F[GUI]
 ```

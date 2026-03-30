@@ -18,7 +18,7 @@ pub fn run_set(
         .ok_or_else(|| EnvltError::InvalidAssignment {
             input: assignment.to_owned(),
         })?;
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let var_type = match (secret, config, plain) {
         (true, false, false) => Some(VarType::Secret),

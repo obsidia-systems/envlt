@@ -18,7 +18,7 @@ pub fn run_remove(service: &AppService, project: &str, yes: bool) -> Result<Exit
         }
     }
 
-    let passphrase = read_passphrase(false)?;
+    let passphrase = read_passphrase(service.store(), false)?;
     let current_dir = env::current_dir()?;
     let result = service.remove_project(project, Some(&current_dir), &passphrase)?;
 

@@ -12,6 +12,7 @@ base64.workspace = true
 chacha20poly1305.workspace = true
 chrono.workspace = true
 dirs.workspace = true
+keyring.workspace = true
 rand.workspace = true
 scrypt.workspace = true
 serde.workspace = true

@@ -7,6 +7,7 @@ This document describes the current CLI surface.
 | Command | Description |
 | --- | --- |
 | `envlt init` | Initialize the encrypted vault |
+| `envlt auth` | Manage stored vault authentication |
 | `envlt add <project>` | Import `.env` or `.env.example` content |
 | `envlt list` | List stored projects |
 | `envlt remove <project>` | Remove a stored project |
@@ -35,6 +36,44 @@ Behavior:
 - creates the `envlt` home directory
 - creates `vault.age`
 - prompts for passphrase confirmation
+
+### `envlt auth`
+
+Manage vault passphrase storage in the system keyring.
+
+#### `envlt auth save`
+
+```bash
+envlt auth save
+```
+
+Behavior:
+
+- reads the passphrase from `ENVLT_PASSPHRASE` or an interactive prompt
+- verifies that the passphrase can decrypt the current vault
+- saves the passphrase in the system keyring for the current `ENVLT_HOME`
+
+#### `envlt auth clear`
+
+```bash
+envlt auth clear
+```
+
+Behavior:
+
+- removes the stored vault passphrase from the system keyring
+- does not modify the vault itself
+
+#### `envlt auth status`
+
+```bash
+envlt auth status
+```
+
+Behavior:
+
+- reports whether `ENVLT_PASSPHRASE` is currently set
+- reports whether a stored system keyring credential exists for the current `ENVLT_HOME`
 
 ### `envlt add <project>`
 
