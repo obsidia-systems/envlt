@@ -1,6 +1,9 @@
 #[cfg(target_os = "macos")]
 use std::process::Command;
-use std::{env, path::{Path, PathBuf}};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 #[cfg(not(target_os = "macos"))]
@@ -46,7 +49,11 @@ fn load_with_backend(backend: &dyn KeyringBackend, store: &VaultStore) -> Result
     }
 }
 
-fn save_with_backend(backend: &dyn KeyringBackend, store: &VaultStore, passphrase: &str) -> Result<()> {
+fn save_with_backend(
+    backend: &dyn KeyringBackend,
+    store: &VaultStore,
+    passphrase: &str,
+) -> Result<()> {
     backend
         .set_password(store, passphrase)
         .map_err(map_keyring_error)?;
@@ -284,8 +291,7 @@ fn macos_set_password(
         Err(KeyringError::PlatformFailure(
             format!(
                 "security add-generic-password failed with status {}: {}",
-                output.status,
-                stderr
+                output.status, stderr
             )
             .into(),
         ))
@@ -455,7 +461,10 @@ mod tests {
         let store = VaultStore::new(temp.path().join(".envlt"));
         let backend = FakeBackend::default();
 
-        assert_eq!(super::load_with_backend(&backend, &store).expect("load"), None);
+        assert_eq!(
+            super::load_with_backend(&backend, &store).expect("load"),
+            None
+        );
 
         super::save_with_backend(&backend, &store, "secret-passphrase").expect("save");
         assert_eq!(
@@ -464,7 +473,10 @@ mod tests {
         );
 
         assert!(super::clear_with_backend(&backend, &store).expect("clear"));
-        assert_eq!(super::load_with_backend(&backend, &store).expect("load"), None);
+        assert_eq!(
+            super::load_with_backend(&backend, &store).expect("load"),
+            None
+        );
         assert!(!super::clear_with_backend(&backend, &store).expect("clear again"));
     }
 }
