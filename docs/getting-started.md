@@ -57,6 +57,8 @@ cargo run -p envlt-cli -- --help
 | `ENVLT_GEN_SET_KEY` | Set the target key for interactive `gen` storage |
 | `ENVLT_GEN_PROJECT` | Set the target project for interactive `gen` storage |
 
+When setting `ENVLT_HOME`, prefer an absolute path so keyring lookup stays consistent across shells and working directories.
+
 ## First-run workflow
 
 ```mermaid

@@ -52,6 +52,7 @@ Behavior:
 - reads the passphrase from `ENVLT_PASSPHRASE` or an interactive prompt
 - verifies that the passphrase can decrypt the current vault
 - saves the passphrase in the system keyring for the current `ENVLT_HOME`
+- for stable keyring lookups, prefer an absolute `ENVLT_HOME`
 
 #### `envlt auth clear`
 

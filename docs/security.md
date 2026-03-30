@@ -14,6 +14,7 @@ This document summarizes the current security model implemented in `envlt`.
 
 - `envlt auth save` can store the vault passphrase in the operating system keyring
 - the stored credential is scoped to the current `ENVLT_HOME`
+- use an absolute `ENVLT_HOME` when overriding it to keep keyring targeting consistent
 - `ENVLT_PASSPHRASE` still takes precedence over the keyring when both exist
 
 ### Basic backup strategy

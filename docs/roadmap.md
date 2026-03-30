@@ -20,7 +20,7 @@ It already covers the core local workflow well, but several meaningful features 
 | Diffing | Done with a safe-summary baseline |
 | Secret generation | Done with secure storage defaults |
 | Diagnostics with `doctor` | Done |
-| System keyring integration | Done |
+| System keyring integration | Partial |
 
 ## What is still missing
 
