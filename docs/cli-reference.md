@@ -21,6 +21,16 @@ This document describes the current CLI surface.
 | `envlt export` | Export a project to `.evlt` |
 | `envlt import` | Import a `.evlt` bundle |
 
+## Exit behavior baseline
+
+`envlt` uses this practical baseline:
+
+- `0` when command execution succeeds
+- non-zero when an actionable error occurred
+- warning-only output does not necessarily imply a failure exit code
+
+For setup and recovery paths, see [Troubleshooting](troubleshooting.md).
+
 ## Commands
 
 ### `envlt init`
@@ -190,6 +200,8 @@ Exit behavior:
 
 - returns success when there are only warnings
 - returns non-zero when real errors are detected
+
+Common recovery steps for doctor failures are documented in [Troubleshooting](troubleshooting.md#doctor-and-vault-state-checks).
 
 ### `envlt set [--project <name>] <KEY=VALUE>`
 

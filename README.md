@@ -27,12 +27,61 @@ It is designed for the local development use case:
 - run commands with in-memory injected variables
 - export/import portable encrypted project bundles
 
+## Problem
+
+The usual `.env` workflow creates avoidable friction:
+
+- plaintext secrets remain on disk
+- onboarding depends on manual copy and edit steps
+- local state drifts across machines and teammates
+- accidental commits happen when `.env` changes are mixed into normal work
+
+`envlt` turns this into an encrypted, repeatable workflow with clear control points.
+
+## Mental Model
+
+`envlt` replaces this:
+
+`.env` -> plaintext -> manual -> error-prone
+
+with this:
+
+`vault` -> encrypted -> reproducible -> controlled
+
+The encrypted vault is your source of truth. `.env` files become generated artifacts only when needed.
+
+## Real-world Before/After
+
+Before:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+After:
+
+```bash
+envlt use api-payments
+envlt run node server.js
+```
+
 ## Why `envlt`
 
 - Local-first: no account, no remote service, no required network dependency
 - Safer by default: encrypted vault, masked secret output, secure generator behavior
 - Portable: share project snapshots with `.evlt` bundles
 - Practical: use `run`, `use`, `diff`, `vars`, `gen`, `doctor`, and `auth` from a single CLI
+
+## Quick Comparison
+
+| Workflow need | Typical `.env` approach | `envlt` approach |
+| --- | --- | --- |
+| Local secret storage | plaintext file on disk | encrypted local vault |
+| Team handoff | copy/paste or shared files | encrypted `.evlt` bundle |
+| Run app locally | depends on current `.env` state | deterministic with `envlt run` |
+| Regenerate files | manual edits and drift risk | `envlt use` from vault state |
+| Offline usage | yes | yes |
 
 ## Status
 
@@ -62,20 +111,29 @@ Still intentionally out of scope for now:
 - encrypted `.evlt` export/import
 - local diagnostics through `envlt doctor`
 
-## Quick Start
+## First 5 Minutes
 
 ```bash
 envlt init
 envlt auth save
 envlt add api-payments
-envlt vars --project api-payments
-envlt set --project api-payments PORT=4000
-envlt remove api-payments --yes
-envlt use --project api-payments
 envlt run --project api-payments -- node server.js
+```
+
+Then move into common tasks:
+
+```bash
+envlt vars --project api-payments
+envlt use --project api-payments
+envlt set --project api-payments PORT=4000
 envlt export api-payments --out bundle.evlt
 envlt import bundle.evlt
 envlt doctor --decrypt
+```
+
+Secret generation examples:
+
+```bash
 envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
 envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
@@ -188,6 +246,8 @@ For details, see [Security](docs/security.md).
 Start with:
 
 - [Documentation Index](docs/README.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Legacy Project Definition Summary (English)](docs/legacy-project-definition-summary.md)
 
 Primary documents:
 

@@ -2,6 +2,19 @@
 
 This guide covers the current supported way to install and use `envlt`.
 
+## Who this guide is for
+
+- developers evaluating `envlt` for local-first secret management
+- teams that want reproducible `.env` workflows without cloud dependency
+
+## Outcome
+
+By the end of this guide you will:
+
+- create and unlock your local encrypted vault
+- attach a project and verify variables
+- run your app using vault-backed variables
+
 ## Installation
 
 ### Install with Homebrew
@@ -78,6 +91,12 @@ sequenceDiagram
     C->>V: load variables in memory
 ```
 
+Expected outcome after this flow:
+
+- a working encrypted vault at `~/.envlt/vault.age`
+- one linked project through `.envlt-link`
+- successful command execution with injected environment variables
+
 ## Common workflows
 
 ### Import an existing `.env`
@@ -106,11 +125,25 @@ envlt use --project api-payments
 envlt use --project api-payments --out .env.local
 ```
 
+Use this path when tools require a file on disk.
+
 ### Run without writing `.env`
 
 ```bash
 envlt run --project api-payments -- node server.js
 ```
+
+Use this path when you want lower disk exposure and reproducible runtime injection.
+
+## Decision table
+
+| If you want to... | Use this command | Why |
+| --- | --- | --- |
+| Start a process with vault variables only in memory | `envlt run --project <name> -- <cmd>` | Avoid writing `.env` files |
+| Create a local env file for tools that require one | `envlt use --project <name> [--out <path>]` | Controlled materialization from encrypted state |
+| Share project variables with a teammate | `envlt export <name> --out bundle.evlt` | Portable encrypted handoff |
+| Bring a shared project snapshot into your machine | `envlt import bundle.evlt` | Fast local bootstrap |
+| Check local health and links | `envlt doctor [--decrypt]` | Detect setup and decryption issues early |
 
 ### Generate and store a secret
 
@@ -188,3 +221,10 @@ envlt_version = "1.0"
 - Cloud sync is not implemented
 - `gen` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone
+
+## Troubleshooting
+
+If something fails during onboarding, start here:
+
+- [Troubleshooting](troubleshooting.md)
+- [CLI Reference](cli-reference.md)

@@ -1,5 +1,8 @@
 # envlt — Project Definition Document
 
+> Legacy note (2026): this document is a historical planning artifact in Spanish.
+> For current implementation-aligned documentation in English, start with `legacy-project-definition-summary.md`, `spec-alignment.md`, and `architecture.md`.
+
 **Version:** 1.0.0  
 **Date:** 2026  
 **Status:** Pre-development  
