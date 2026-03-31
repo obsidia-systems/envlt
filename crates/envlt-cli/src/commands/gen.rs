@@ -2,11 +2,13 @@ use std::process::ExitCode;
 
 use anyhow::Result;
 use envlt_core::{generate_custom_value, supported_gen_types, AppService, Charset, GenType};
+use serde_json::to_string_pretty;
 
 use crate::cli::{
     print_success, read_gen_project, read_gen_save_choice, read_gen_set_key, read_gen_type,
     read_passphrase,
 };
+use crate::output::{render_raw_rows, render_table, OutputFormat};
 
 const DEFAULT_GEN_TYPE: &str = "token";
 
@@ -20,6 +22,7 @@ pub struct GenOptions<'a> {
     pub set_key: &'a Option<String>,
     pub project: &'a Option<String>,
     pub silent: bool,
+    pub list_format: Option<OutputFormat>,
 }
 
 impl GenOptions<'_> {
@@ -41,9 +44,31 @@ impl GenOptions<'_> {
 
 pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode> {
     if options.list_types {
-        for supported in supported_gen_types() {
-            println!("{}", supported.as_str());
+        let supported = supported_gen_types()
+            .iter()
+            .map(|gen_type| gen_type.as_str().to_owned())
+            .collect::<Vec<_>>();
+
+        match options.list_format.unwrap_or(OutputFormat::Table) {
+            OutputFormat::Table => {
+                let rows = supported
+                    .iter()
+                    .map(|gen_type| vec![gen_type.clone()])
+                    .collect::<Vec<_>>();
+                println!("{}", render_table(&["type"], &rows));
+            }
+            OutputFormat::Raw => {
+                let rows = supported
+                    .iter()
+                    .map(|gen_type| vec![gen_type.clone()])
+                    .collect::<Vec<_>>();
+                println!("{}", render_raw_rows(&rows));
+            }
+            OutputFormat::Json => {
+                println!("{}", to_string_pretty(&supported)?);
+            }
         }
+
         return Ok(ExitCode::SUCCESS);
     }
 

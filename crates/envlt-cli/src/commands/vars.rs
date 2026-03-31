@@ -2,26 +2,47 @@ use std::process::ExitCode;
 
 use anyhow::Result;
 use envlt_core::{AppService, VarType};
+use serde_json::to_string_pretty;
 
 use crate::cli::read_passphrase;
+use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
 
-pub fn run_vars(service: &AppService, project: &Option<String>) -> Result<ExitCode> {
+pub fn run_vars(
+    service: &AppService,
+    project: &Option<String>,
+    format: OutputFormat,
+) -> Result<ExitCode> {
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let variables = service.project_variable_views(&project, &passphrase)?;
 
     if variables.is_empty() {
-        println!("No variables found.");
+        match format {
+            OutputFormat::Json => println!("[]"),
+            OutputFormat::Raw | OutputFormat::Table => println!("No variables found."),
+        }
         return Ok(ExitCode::SUCCESS);
     }
 
-    for variable in variables {
-        println!(
-            "{}\t{}\t{}",
-            variable.key,
-            format_var_type(variable.var_type),
-            format_value(&variable.value, variable.var_type)
-        );
+    let headers = ["key", "type", "value"];
+    let rows = variables
+        .into_iter()
+        .map(|variable| {
+            vec![
+                variable.key,
+                format_var_type(variable.var_type).to_owned(),
+                format_value(&variable.value, variable.var_type),
+            ]
+        })
+        .collect::<Vec<_>>();
+
+    match format {
+        OutputFormat::Table => println!("{}", render_table(&headers, &rows)),
+        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
+        OutputFormat::Json => {
+            let json = rows_to_json_objects(&headers, &rows);
+            println!("{}", to_string_pretty(&json)?);
+        }
     }
 
     Ok(ExitCode::SUCCESS)

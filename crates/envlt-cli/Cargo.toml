@@ -13,7 +13,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+comfy-table.workspace = true
 rpassword.workspace = true
+serde_json.workspace = true
 envlt-core = { path = "../envlt-core" }
 
 [dev-dependencies]

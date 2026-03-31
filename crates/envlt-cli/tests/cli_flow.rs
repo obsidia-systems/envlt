@@ -2,6 +2,7 @@ use std::fs;
 
 use assert_cmd::Command;
 use predicates::prelude::*;
+use serde_json::Value;
 use tempfile::TempDir;
 
 fn cli(home: &TempDir) -> Command {
@@ -110,11 +111,36 @@ fn doctor_reports_missing_vault_without_failing() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .arg("doctor")
+        .args(["doctor", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains("summary\t"))
         .stdout(predicate::str::contains("warn\tvault\tvault not found"));
+}
+
+#[test]
+fn doctor_json_includes_summary_and_checks() {
+    let home = TempDir::new().expect("tempdir");
+
+    cli(&home)
+        .args(["doctor", "--format", "json"])
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let summary = parsed.get("summary");
+            let checks = parsed.get("checks").and_then(Value::as_array);
+            let has_vault_check = checks
+                .into_iter()
+                .flatten()
+                .any(|check| check.get("code") == Some(&Value::String("vault".to_owned())));
+
+            summary.is_some() && has_vault_check
+        }));
 }
 
 #[test]
@@ -134,7 +160,7 @@ fn doctor_reports_existing_link_and_decrypts_when_requested() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["doctor", "--decrypt"])
+        .args(["doctor", "--decrypt", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains(
@@ -159,7 +185,7 @@ fn doctor_fails_when_link_target_is_missing() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["doctor", "--decrypt"])
+        .args(["doctor", "--decrypt", "--format", "raw"])
         .assert()
         .failure()
         .stdout(predicate::str::contains(
@@ -536,11 +562,56 @@ fn vars_shows_types_and_masks_secret_values() {
         .success();
 
     cli(&home)
-        .args(["vars", "--project", "typed-project"])
+        .args(["vars", "--project", "typed-project", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains("API_KEY\tsecret\tab***"))
         .stdout(predicate::str::contains("PORT\tconfig\t3000"));
+}
+
+#[test]
+fn vars_json_masks_secrets_and_preserves_types() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "API_KEY=abc123\nPORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "json-vars-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["vars", "--project", "json-vars-project", "--format", "json"])
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let Some(rows) = parsed.as_array() else {
+                return false;
+            };
+
+            let has_masked_secret = rows.iter().any(|row| {
+                row.get("key") == Some(&Value::String("API_KEY".to_owned()))
+                    && row.get("type") == Some(&Value::String("secret".to_owned()))
+                    && row.get("value") == Some(&Value::String("ab***".to_owned()))
+            });
+
+            let has_config = rows.iter().any(|row| {
+                row.get("key") == Some(&Value::String("PORT".to_owned()))
+                    && row.get("type") == Some(&Value::String("config".to_owned()))
+                    && row.get("value") == Some(&Value::String("3000".to_owned()))
+            });
+
+            has_masked_secret && has_config
+        }));
 }
 
 #[test]
@@ -560,7 +631,7 @@ fn vars_can_resolve_project_from_link() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .arg("vars")
+        .args(["vars", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains("JWT_SECRET\tsecret\tsu***"));
@@ -593,7 +664,7 @@ fn set_can_override_variable_type_explicitly() {
         .success();
 
     cli(&home)
-        .args(["vars", "--project", "typed-set-project"])
+        .args(["vars", "--project", "typed-set-project", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains("PORT\tplain\t4000"));
@@ -623,6 +694,8 @@ fn diff_example_reports_shared_missing_and_extra_keys() {
             "diff-project",
             "--example",
             example_path.to_str().expect("utf8 path"),
+            "--format",
+            "raw",
         ])
         .assert()
         .success()
@@ -662,6 +735,8 @@ fn diff_example_can_resolve_project_from_link() {
             "diff",
             "--example",
             example_path.to_str().expect("utf8 path"),
+            "--format",
+            "raw",
         ])
         .assert()
         .success()
@@ -692,7 +767,14 @@ fn diff_between_projects_reports_shared_and_unique_keys() {
         .success();
 
     cli(&home)
-        .args(["diff", "--project", "left-project", "right-project"])
+        .args([
+            "diff",
+            "--project",
+            "left-project",
+            "right-project",
+            "--format",
+            "raw",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("mode\tproject"))
@@ -746,7 +828,14 @@ fn diff_between_projects_reports_type_changes_separately() {
         .success();
 
     cli(&home)
-        .args(["diff", "--project", "left-project", "right-project"])
+        .args([
+            "diff",
+            "--project",
+            "left-project",
+            "right-project",
+            "--format",
+            "raw",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("changed_values\t0"))
@@ -783,6 +872,29 @@ fn gen_list_types_shows_supported_types() {
 }
 
 #[test]
+fn gen_list_types_supports_json_output() {
+    let home = TempDir::new().expect("tempdir");
+
+    cli(&home)
+        .args(["gen", "--list-types", "--format", "json"])
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let Some(types) = parsed.as_array() else {
+                return false;
+            };
+
+            types.contains(&Value::String("jwt-secret".to_owned()))
+                && types.contains(&Value::String("password".to_owned()))
+        }));
+}
+
+#[test]
 fn gen_can_store_value_in_project() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
@@ -812,7 +924,7 @@ fn gen_can_store_value_in_project() {
         .stdout(predicate::str::contains("Value generated and saved."));
 
     cli(&home)
-        .args(["vars", "--project", "gen-project"])
+        .args(["vars", "--project", "gen-project", "--format", "raw"])
         .assert()
         .success()
         .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));
@@ -923,7 +1035,13 @@ fn gen_interactive_mode_can_store_value_via_env_overrides() {
         .stdout(predicate::str::contains("Value generated and saved."));
 
     cli(&home)
-        .args(["vars", "--project", "interactive-gen-project"])
+        .args([
+            "vars",
+            "--project",
+            "interactive-gen-project",
+            "--format",
+            "raw",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));

@@ -79,12 +79,20 @@ Behavior:
 
 ```bash
 envlt auth status
+envlt auth status --format raw
+envlt auth status --format json
 ```
 
 Behavior:
 
 - reports whether `ENVLT_PASSPHRASE` is currently set
 - reports whether a stored system keyring credential exists for the current `ENVLT_HOME`
+
+Output formats:
+
+- `--format table` (default)
+- `--format raw`
+- `--format json`
 
 ### `envlt add <project>`
 
@@ -103,7 +111,15 @@ List stored projects.
 
 ```bash
 envlt list
+envlt list --format raw
+envlt list --format json
 ```
+
+Output formats:
+
+- `--format table` (default)
+- `--format raw`
+- `--format json`
 
 ### `envlt remove <project> [--yes]`
 
@@ -127,12 +143,20 @@ Show variable names, types, and masked or visible values depending on type.
 ```bash
 envlt vars --project api-payments
 envlt vars
+envlt vars --project api-payments --format raw
+envlt vars --project api-payments --format json
 ```
 
 Output behavior:
 
 - `Secret` values are masked
 - `Config` and `Plain` values are shown
+
+Output formats:
+
+- `--format table` (default)
+- `--format raw`
+- `--format json`
 
 ### `envlt diff`
 
@@ -141,6 +165,8 @@ Output behavior:
 ```bash
 envlt diff --project api-payments --example .env.example
 envlt diff --example .env.example
+envlt diff --project api-payments --example .env.example --format raw
+envlt diff --project api-payments --example .env.example --format json
 ```
 
 Reports:
@@ -161,6 +187,8 @@ Output format:
 
 ```bash
 envlt diff --project api-payments api-auth
+envlt diff --project api-payments api-auth --format raw
+envlt diff --project api-payments api-auth --format json
 ```
 
 Reports:
@@ -186,6 +214,8 @@ Run local diagnostics.
 ```bash
 envlt doctor
 envlt doctor --decrypt
+envlt doctor --format raw
+envlt doctor --format json
 ```
 
 Checks currently include:
@@ -202,6 +232,12 @@ Exit behavior:
 - returns non-zero when real errors are detected
 
 Common recovery steps for doctor failures are documented in [Troubleshooting](troubleshooting.md#doctor-and-vault-state-checks).
+
+Output formats:
+
+- `--format table` (default)
+- `--format raw`
+- `--format json`
 
 ### `envlt set [--project <name>] <KEY=VALUE>`
 
@@ -244,6 +280,8 @@ Generate secure values.
 
 ```bash
 envlt gen --list-types
+envlt gen --list-types --format raw
+envlt gen --list-types --format json
 envlt gen
 envlt gen --type jwt-secret
 envlt gen --type password
@@ -270,6 +308,10 @@ Current behavior:
 - does not reveal stored generated values by default
 - supports `--show` as an explicit reveal flag
 - treats `--show` and `--silent` as conflicting flags
+
+Notes:
+
+- `--format` currently applies to `--list-types` output
 
 ### `envlt export <project> --out <path>`
 

@@ -1,5 +1,6 @@
 mod cli;
 mod commands;
+mod output;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -22,6 +23,7 @@ use commands::{
     vars::run_vars,
 };
 use envlt_core::{AppService, VaultStore};
+use output::OutputFormat;
 
 fn main() -> ExitCode {
     match real_main() {
@@ -43,7 +45,7 @@ fn real_main() -> Result<ExitCode> {
         Commands::Auth { command } => match command {
             AuthCommands::Save => run_auth_save(&service),
             AuthCommands::Clear => run_auth_clear(&service),
-            AuthCommands::Status => run_auth_status(&service),
+            AuthCommands::Status { format } => run_auth_status(&service, format),
         },
         Commands::Add {
             project,
@@ -51,15 +53,16 @@ fn real_main() -> Result<ExitCode> {
             from_example,
             project_path,
         } => run_add(&service, &project, &file, &from_example, project_path),
-        Commands::List => run_list(&service),
+        Commands::List { format } => run_list(&service, format),
         Commands::Remove { project, yes } => run_remove(&service, &project, yes),
-        Commands::Vars { project } => run_vars(&service, &project),
-        Commands::Doctor { decrypt } => run_doctor(&service, decrypt),
+        Commands::Vars { project, format } => run_vars(&service, &project, format),
+        Commands::Doctor { decrypt, format } => run_doctor(&service, decrypt, format),
         Commands::Diff {
             project,
             other_project,
             example,
-        } => run_diff(&service, &project, &other_project, &example),
+            format,
+        } => run_diff(&service, &project, &other_project, &example, format),
         Commands::Gen {
             gen_type,
             list_types,
@@ -70,6 +73,7 @@ fn real_main() -> Result<ExitCode> {
             set,
             project,
             silent,
+            format,
         } => run_gen(
             &service,
             GenOptions {
@@ -82,6 +86,7 @@ fn real_main() -> Result<ExitCode> {
                 set_key: &set,
                 project: &project,
                 silent,
+                list_format: format,
             },
         ),
         Commands::Export { project, out } => run_export(&service, &project, &out),
@@ -140,7 +145,10 @@ enum Commands {
         project_path: Option<PathBuf>,
     },
     #[command(about = "List all stored projects")]
-    List,
+    List {
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
+    },
     #[command(
         about = "Remove a stored project from the vault",
         long_about = "Remove a project from the encrypted vault. By default envlt asks for confirmation first. If the current directory has a .envlt-link that points to the removed project, envlt clears that link as part of the operation."
@@ -161,6 +169,8 @@ enum Commands {
             help = "Attempt to decrypt the vault and validate linked-project state"
         )]
         decrypt: bool,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
     },
     #[command(
         about = "Show variables stored for a project",
@@ -172,6 +182,8 @@ enum Commands {
             help = "Project to inspect; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
     },
     #[command(
         about = "Compare a project against .env.example or another project",
@@ -191,6 +203,8 @@ enum Commands {
             help = "Path to a .env.example file to compare against"
         )]
         example: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
     },
     #[command(
         about = "Generate secure values and optionally store them",
@@ -223,6 +237,8 @@ enum Commands {
         project: Option<String>,
         #[arg(long, help = "Suppress all command output")]
         silent: bool,
+        #[arg(long, value_enum, help = "Output format for --list-types")]
+        format: Option<OutputFormat>,
     },
     #[command(about = "Export a project to an encrypted .evlt bundle")]
     Export {
@@ -321,5 +337,8 @@ enum AuthCommands {
         about = "Show whether auth sources are available",
         long_about = "Report whether ENVLT_PASSPHRASE is set and whether a stored vault passphrase exists in the system keyring for the current envlt home."
     )]
-    Status,
+    Status {
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
+    },
 }
