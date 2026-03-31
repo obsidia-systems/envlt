@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use envlt_core::{infer_var_type, parse_env_file, AppService};
+use envlt_core::AppService;
 
 use crate::cli::{print_success, read_example_value, read_passphrase};
 
@@ -22,15 +22,12 @@ pub fn run_add(
 
     match from_example {
         Some(example_path) => {
-            let example_variables = parse_env_file(example_path)?;
+            let required_inputs = service.missing_example_inputs(example_path)?;
             let mut overrides = std::collections::BTreeMap::new();
 
-            for (key, value) in example_variables {
-                if value.is_empty() {
-                    let inferred_type = infer_var_type(&key);
-                    let resolved = read_example_value(&key, inferred_type)?;
-                    overrides.insert(key, resolved);
-                }
+            for (key, inferred_type) in required_inputs {
+                let resolved = read_example_value(&key, inferred_type)?;
+                overrides.insert(key, resolved);
             }
 
             service.add_project_from_example(

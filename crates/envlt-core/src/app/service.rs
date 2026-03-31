@@ -6,11 +6,11 @@ use std::{
 
 use crate::{
     bundle::{decrypt_project_bundle, encrypt_project_bundle},
-    env::{parse_env_file, render_env},
+    env::{parse_env_file, parse_env_str, render_env},
     error::{EnvltError, Result},
     gen::{generate_value, GenType},
     link::{read_project_link, remove_project_link, write_project_link},
-    vault::{Project, VarType, Variable, VaultStore},
+    vault::{infer_var_type, Project, VarType, Variable, VaultStore},
 };
 
 #[derive(Debug, Clone)]
@@ -133,6 +133,42 @@ impl AppService {
         passphrase: &str,
     ) -> Result<()> {
         let variables = parse_env_file(env_file_path)?;
+        self.add_project_from_variables(project_name, variables, project_path, passphrase)
+    }
+
+    pub fn add_project_from_env_str(
+        &self,
+        project_name: &str,
+        env_content: &str,
+        project_path: Option<PathBuf>,
+        passphrase: &str,
+    ) -> Result<()> {
+        let virtual_path = Path::new("<inline-env>");
+        let variables = parse_env_str(virtual_path, env_content)?;
+        self.add_project_from_variables(project_name, variables, project_path, passphrase)
+    }
+
+    pub fn missing_example_inputs(&self, example_path: &Path) -> Result<Vec<(String, VarType)>> {
+        let variables = parse_env_file(example_path)?;
+        Ok(variables
+            .into_iter()
+            .filter_map(|(key, value)| {
+                if value.is_empty() {
+                    Some((key.clone(), infer_var_type(&key)))
+                } else {
+                    None
+                }
+            })
+            .collect())
+    }
+
+    fn add_project_from_variables(
+        &self,
+        project_name: &str,
+        variables: BTreeMap<String, String>,
+        project_path: Option<PathBuf>,
+        passphrase: &str,
+    ) -> Result<()> {
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -343,6 +379,29 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
+    pub fn unset_variable(&self, project_name: &str, key: &str, passphrase: &str) -> Result<()> {
+        let mut vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get_mut(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+
+        let removed = project.variables.remove(key).is_some();
+        if !removed {
+            return Err(EnvltError::VariableNotFound {
+                project: project_name.to_owned(),
+                key: key.to_owned(),
+            });
+        }
+
+        project.touch();
+        vault.touch();
+        self.store.save(&vault, passphrase)
+    }
+
     pub fn generate_value(&self, gen_type: GenType) -> String {
         generate_value(gen_type)
     }
@@ -542,10 +601,18 @@ impl AppService {
         output_path: &Path,
         passphrase: &str,
     ) -> Result<()> {
-        let variables = self.project_variables(project_name, passphrase)?;
-        let content = render_env(&variables);
+        let content = self.render_project_env_content(project_name, passphrase)?;
         fs::write(output_path, content)?;
         Ok(())
+    }
+
+    pub fn render_project_env_content(
+        &self,
+        project_name: &str,
+        passphrase: &str,
+    ) -> Result<String> {
+        let variables = self.project_variables(project_name, passphrase)?;
+        Ok(render_env(&variables))
     }
 
     pub fn build_run_environment(

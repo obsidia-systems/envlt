@@ -671,6 +671,65 @@ fn set_can_override_variable_type_explicitly() {
 }
 
 #[test]
+fn unset_removes_variable_from_project() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\nMODE=dev\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "unset-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["unset", "--project", "unset-project", "MODE"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Variable removed."));
+
+    cli(&home)
+        .args(["vars", "--project", "unset-project", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tconfig\t3000"))
+        .stdout(predicate::str::contains("MODE").not());
+}
+
+#[test]
+fn unset_can_resolve_project_from_link() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "KEEP=1\nDROP=1\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "linked-unset-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["unset", "DROP"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["vars", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("KEEP\tconfig\t1"))
+        .stdout(predicate::str::contains("DROP").not());
+}
+
+#[test]
 fn diff_example_reports_shared_missing_and_extra_keys() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");

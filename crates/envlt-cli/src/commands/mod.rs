@@ -10,5 +10,6 @@ pub mod list;
 pub mod remove;
 pub mod run;
 pub mod set;
+pub mod unset;
 pub mod use_cmd;
 pub mod vars;

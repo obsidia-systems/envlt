@@ -15,6 +15,7 @@ This document describes the current CLI surface.
 | `envlt diff` | Compare against `.env.example` or another project |
 | `envlt doctor` | Diagnose the local vault and link state |
 | `envlt set` | Create or update a variable |
+| `envlt unset` | Delete a variable |
 | `envlt use` | Write a `.env` file from the vault |
 | `envlt run` | Run a child process with injected variables |
 | `envlt gen` | Generate secure values |
@@ -254,6 +255,15 @@ Type flags:
 - `--secret`
 - `--config`
 - `--plain`
+
+### `envlt unset [--project <name>] <KEY>`
+
+Delete a variable from a project.
+
+```bash
+envlt unset --project api-payments JWT_SECRET
+envlt unset JWT_SECRET
+```
 
 ### `envlt use [--project <name>] [--out <path>]`
 

@@ -19,6 +19,7 @@ use commands::{
     remove::run_remove,
     run::run_run,
     set::run_set,
+    unset::run_unset,
     use_cmd::run_use,
     vars::run_vars,
 };
@@ -98,6 +99,7 @@ fn real_main() -> Result<ExitCode> {
             config,
             plain,
         } => run_set(&service, &project, &assignment, secret, config, plain),
+        Commands::Unset { project, key } => run_unset(&service, &project, &key),
         Commands::Use { project, out } => run_use(&service, &project, &out),
         Commands::Run { project, command } => run_run(&service, &project, &command),
     }
@@ -304,6 +306,19 @@ enum Commands {
             help = "Output path for the rendered env file"
         )]
         out: PathBuf,
+    },
+    #[command(
+        about = "Delete a project variable",
+        long_about = "Remove a variable from a project. The project can be selected explicitly with --project or resolved from .envlt-link."
+    )]
+    Unset {
+        #[arg(
+            long,
+            help = "Project to update; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(help = "Variable key to delete")]
+        key: String,
     },
     #[command(
         about = "Run a child process with vault variables injected",

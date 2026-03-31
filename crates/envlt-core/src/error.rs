@@ -18,6 +18,8 @@ pub enum EnvltError {
     ProjectNotFound { name: String },
     #[error("project '{name}' already exists")]
     ProjectAlreadyExists { name: String },
+    #[error("variable '{key}' was not found in project '{project}'")]
+    VariableNotFound { project: String, key: String },
     #[error("could not resolve a project from --project or .envlt-link in {path}")]
     ProjectResolutionFailed { path: PathBuf },
     #[error("invalid variable assignment '{input}', expected KEY=VALUE")]
