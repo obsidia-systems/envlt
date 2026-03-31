@@ -2,17 +2,12 @@ use clap::ValueEnum;
 use comfy_table::{Cell, ContentArrangement, Table};
 use serde_json::{Map, Value};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 pub enum OutputFormat {
+    #[default]
     Table,
     Raw,
     Json,
-}
-
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Table
-    }
 }
 
 pub fn render_table(headers: &[&str], rows: &[Vec<String>]) -> String {
