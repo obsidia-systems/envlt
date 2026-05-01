@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-01
+
+### Fixed
+
+- Updated `Cargo.lock` to include `clap_complete` dependency, fixing `--locked` release builds
+
 ## [0.2.0] - 2026-05-01
 
 ### Added
