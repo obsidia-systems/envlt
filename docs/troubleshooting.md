@@ -116,15 +116,14 @@ What to inspect from output:
 
 If warnings appear without hard errors, command exit can still be successful.
 
-## macOS Gatekeeper block
+## Installation method issues
 
-For trusted downloaded release binaries:
+Homebrew is the recommended install path. If a manually downloaded binary behaves differently from the Homebrew install, retry with Homebrew before opening an issue:
 
 ```bash
-xattr -d com.apple.quarantine ./envlt
+brew install obsidia-systems/tap/envlt
+envlt --help
 ```
-
-Then move binary into your `PATH` and retry.
 
 ## When to escalate
 

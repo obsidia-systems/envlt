@@ -7,6 +7,8 @@ This directory contains the current technical documentation for `envlt`.
 - New user onboarding: [Getting Started](getting-started.md)
 - Daily command usage: [CLI Reference](cli-reference.md)
 - Security review: [Security](security.md)
+- Security boundaries: [Threat Model](threat-model.md)
+- Common workflows: [Integrations](integrations.md)
 - Architecture deep dive: [Architecture](architecture.md)
 - Product direction: [Roadmap](roadmap.md)
 - Troubleshooting and recovery: [Troubleshooting](troubleshooting.md)
@@ -18,12 +20,14 @@ This directory contains the current technical documentation for `envlt`.
 2. [CLI Reference](cli-reference.md)
 3. [Architecture](architecture.md)
 4. [Security](security.md)
-5. [Roadmap](roadmap.md)
-6. [Spec Alignment](spec-alignment.md)
-7. [Releasing](releasing.md)
-8. [Troubleshooting](troubleshooting.md)
-9. [Contributing](../CONTRIBUTING.md)
-10. [Changelog](../CHANGELOG.md)
+5. [Threat Model](threat-model.md)
+6. [Integrations](integrations.md)
+7. [Roadmap](roadmap.md)
+8. [Spec Alignment](spec-alignment.md)
+9. [Releasing](releasing.md)
+10. [Troubleshooting](troubleshooting.md)
+11. [Contributing](../CONTRIBUTING.md)
+12. [Changelog](../CHANGELOG.md)
 
 Historical source document:
 
@@ -39,9 +43,11 @@ flowchart TD
     B --> D[cli-reference.md]
     B --> E[architecture.md]
     B --> F[security.md]
-    B --> G[roadmap.md]
-    B --> H[spec-alignment.md]
-    H --> I[project-definition.md]
+    F --> G[threat-model.md]
+    B --> H[integrations.md]
+    B --> I[roadmap.md]
+    B --> J[spec-alignment.md]
+    J --> K[project-definition.md]
 ```
 
 ## Document roles
@@ -53,6 +59,8 @@ flowchart TD
 | `troubleshooting.md` | First-run failures, diagnostics, and recovery playbooks |
 | `architecture.md` | Core design, storage model, and runtime flow |
 | `security.md` | Current security model and operational guidance |
+| `threat-model.md` | Security boundaries, guarantees, non-goals, and assumptions |
+| `integrations.md` | Practical recipes for common local development workflows |
 | `roadmap.md` | What is still missing and what is planned next |
 | `spec-alignment.md` | Verification of the current implementation against the original specification |
 | `legacy-project-definition-summary.md` | English summary of the original definition and current status |

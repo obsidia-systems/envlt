@@ -916,6 +916,66 @@ fn diff_without_mode_returns_error() {
 }
 
 #[test]
+fn check_passes_when_all_variables_present() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+    let example_path = project_dir.path().join(".env.example");
+
+    fs::write(&env_path, "PORT=3000\nAPI_KEY=abc123\n").expect("write env");
+    fs::write(&example_path, "PORT=\nAPI_KEY=\n").expect("write example");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "check-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "check",
+            "--project",
+            "check-project",
+            example_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "ok\tall required variables present",
+        ));
+}
+
+#[test]
+fn check_fails_when_variables_are_missing() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+    let example_path = project_dir.path().join(".env.example");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+    fs::write(&example_path, "PORT=\nREQUIRED_KEY=\n").expect("write example");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "check-missing-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "check",
+            "--project",
+            "check-missing-project",
+            example_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("missing\tREQUIRED_KEY"));
+}
+
+#[test]
 fn gen_list_types_shows_supported_types() {
     let home = TempDir::new().expect("tempdir");
 
@@ -1241,4 +1301,15 @@ fn gen_custom_set_does_not_print_value_by_default() {
         .assert()
         .success()
         .stdout("Value generated and saved.\n");
+}
+
+#[test]
+fn completions_bash_outputs_non_empty_script() {
+    let home = TempDir::new().expect("tempdir");
+
+    cli(&home)
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("_envlt"));
 }

@@ -24,6 +24,19 @@ brew install obsidia-systems/tap/envlt
 envlt --help
 ```
 
+Homebrew is the recommended installation path on macOS and Linuxbrew-compatible environments.
+
+### Windows through WSL
+
+Native Windows packaging is not a current target. Windows users should install and run `envlt` inside WSL:
+
+```bash
+brew install obsidia-systems/tap/envlt
+envlt --help
+```
+
+Keep the vault and project files inside the WSL filesystem when possible. This avoids path, permission, and keyring differences between Windows and Linux environments.
+
 ### Install from the repository
 
 ```bash
@@ -44,13 +57,7 @@ sudo mv envlt /usr/local/bin/envlt
 envlt --help
 ```
 
-This is currently a manual binary installation flow, not a native package-manager install.
-
-On macOS, downloaded binaries may carry Apple's quarantine attribute. Until signed and notarized releases are in place, remove it for trusted release binaries after extraction:
-
-```bash
-xattr -d com.apple.quarantine ./envlt
-```
+This is currently a manual binary installation flow. Prefer Homebrew unless you specifically need direct release assets.
 
 ### Run without installing
 
@@ -216,8 +223,7 @@ envlt_version = "1.0"
 
 ## Current limitations
 
-- the Homebrew formula currently uses prebuilt release assets and may still evolve toward a source-first formula
-- macOS artifacts are not signed or notarized yet, so Gatekeeper may block them until quarantine is removed manually
+- native Windows packaging is not a current target; use WSL on Windows
 - Cloud sync is not implemented
 - `gen` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone

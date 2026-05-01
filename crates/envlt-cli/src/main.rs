@@ -9,6 +9,8 @@ use clap::{Parser, Subcommand};
 use commands::{
     add::run_add,
     auth::{run_auth_clear, run_auth_save, run_auth_status},
+    check::run_check,
+    completions::{run_completions, CompletionShell},
     diff::run_diff,
     doctor::run_doctor,
     export::run_export,
@@ -58,6 +60,8 @@ fn real_main() -> Result<ExitCode> {
         Commands::Remove { project, yes } => run_remove(&service, &project, yes),
         Commands::Vars { project, format } => run_vars(&service, &project, format),
         Commands::Doctor { decrypt, format } => run_doctor(&service, decrypt, format),
+        Commands::Completions { shell } => run_completions(shell),
+        Commands::Check { project, example } => run_check(&service, &project, &example),
         Commands::Diff {
             project,
             other_project,
@@ -186,6 +190,27 @@ enum Commands {
         project: Option<String>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
         format: OutputFormat,
+    },
+    #[command(
+        about = "Generate shell completion scripts",
+        long_about = "Generate shell completion scripts for bash, zsh, fish, PowerShell, or Elvish. Output the result to stdout and redirect it to the appropriate completion directory for your shell."
+    )]
+    Completions {
+        #[arg(help = "Shell to generate completions for")]
+        shell: CompletionShell,
+    },
+    #[command(
+        about = "Check that a project satisfies a .env.example contract",
+        long_about = "Verify that all variables declared in a .env.example file are present in the vault project. Exit code is 0 when complete and non-zero when variables are missing. This is useful for automation and pre-commit checks."
+    )]
+    Check {
+        #[arg(
+            long,
+            help = "Project to check; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(help = "Path to the .env.example file to check against")]
+        example: PathBuf,
     },
     #[command(
         about = "Compare a project against .env.example or another project",

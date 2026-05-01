@@ -178,15 +178,7 @@ sudo mv envlt /usr/local/bin/envlt
 envlt --help
 ```
 
-This remains a supported manual installation path in addition to Homebrew.
-
-On macOS, binaries downloaded from a browser may be blocked by Gatekeeper until the project ships signed and notarized artifacts. For a release you trust, you can remove the quarantine attribute after extracting it:
-
-```bash
-xattr -d com.apple.quarantine ./envlt
-```
-
-Then move the binary into your `PATH` and run it normally.
+This remains a supported manual installation path in addition to Homebrew, but Homebrew is the recommended path for most users.
 
 ### Development usage from the repository
 
@@ -220,7 +212,9 @@ flowchart LR
 | `envlt list` | List stored projects |
 | `envlt remove` | Remove a stored project |
 | `envlt vars` | Show project variables and types |
+| `envlt check` | Verify a project against `.env.example` |
 | `envlt diff` | Compare against `.env.example` or another project |
+| `envlt completions` | Generate shell completion scripts |
 | `envlt set` | Create or update variables |
 | `envlt use` | Materialize a `.env` file |
 | `envlt run` | Execute a child process with injected variables |
@@ -255,6 +249,8 @@ Primary documents:
 - [CLI Reference](docs/cli-reference.md)
 - [Architecture](docs/architecture.md)
 - [Security](docs/security.md)
+- [Threat Model](docs/threat-model.md)
+- [Integrations](docs/integrations.md)
 - [Roadmap](docs/roadmap.md)
 - [Spec Alignment](docs/spec-alignment.md)
 - [Contributing](CONTRIBUTING.md)
@@ -287,7 +283,8 @@ What is already ready:
 - release workflow
 - Homebrew tap and install path
 
-What still remains:
+Current distribution policy:
 
-- refine the Homebrew formula toward source-first installation
-- add signing and notarization for macOS artifacts
+- Homebrew is the recommended install path
+- Windows users should use WSL
+- Apple signing and notarization are not part of the current roadmap

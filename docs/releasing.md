@@ -85,17 +85,13 @@ The current release workflow now defines an explicit target matrix:
 - `envlt-macos-x86_64.tar.gz`
 - `envlt-macos-aarch64.tar.gz`
 
-This makes the download surface suitable for both manual installation and future Homebrew formulas.
+This makes the download surface suitable for manual installation and Homebrew formula updates.
 
-## Current macOS limitation
+## Distribution policy
 
-The project does not yet ship signed or notarized macOS artifacts.
+Homebrew is the recommended install path for normal users. Direct release assets remain useful for manual installs, automation, and verification.
 
-That means:
-
-- Apple Gatekeeper may block first launch for browser-downloaded binaries
-- users may need to remove quarantine manually for trusted binaries
-- signing and notarization should be added before calling the macOS packaging story fully polished
+Native Windows packaging and Apple signing/notarization are not part of the current release strategy.
 
 ## Release checklist
 
@@ -143,36 +139,33 @@ After the workflow finishes, verify:
 - artifact names are correct
 - the generated GitHub release notes are acceptable
 
-### 5. Capture Homebrew inputs
+### 5. Confirm Homebrew inputs
 
-For the future formula, collect:
+For the formula update, confirm:
 
 - archive URL
 - checksum from the `.sha256` file
 - exact binary name inside the archive
 
-## Recommended first release shape
+## Recommended release shape
 
-For the first public release:
+For a public release:
 
 - tag: `v0.1.0`
 - release title: `envlt v0.1.0`
-- release type: pre-Homebrew public baseline
+- release type: Homebrew-installable CLI release
 
 Suggested positioning:
 
 - local-first encrypted environment vault for development workflows
 - core CLI ready
-- packaging and Homebrew integration next
+- Homebrew installation path available
 
-## What still remains after the first release
+## What still remains after a release
 
-The release workflow is a baseline, not the final packaging story.
+The release workflow is a baseline and should stay simple unless user demand requires more packaging surface.
 
-Still pending after the first successful tagged release:
+Still useful after a tagged release:
 
 - refine artifact naming if needed
-- decide Homebrew tap structure
-- create the Homebrew formula
-- add macOS signing and notarization
 - optionally expand platform matrix later

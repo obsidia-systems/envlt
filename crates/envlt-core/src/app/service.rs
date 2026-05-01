@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    env, fs,
+    env,
     path::{Path, PathBuf},
 };
 
@@ -601,8 +601,30 @@ impl AppService {
         output_path: &Path,
         passphrase: &str,
     ) -> Result<()> {
+        use std::io::Write;
+
         let content = self.render_project_env_content(project_name, passphrase)?;
-        fs::write(output_path, content)?;
+
+        let parent = output_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+
+        let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        temp.write_all(content.as_bytes())?;
+        temp.flush()?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = temp.as_file().metadata()?;
+            let mut permissions = metadata.permissions();
+            permissions.set_mode(0o600);
+            temp.as_file().set_permissions(permissions)?;
+        }
+
+        temp.persist(output_path).map_err(|err| err.error)?;
+
         Ok(())
     }
 
@@ -1196,7 +1218,7 @@ mod tests {
         let project_dir = TempDir::new().expect("tempdir");
         let env_path = project_dir.path().join(".env");
 
-        fs::write(&env_path, "PORT=3000\n").expect("write env");
+        std::fs::write(&env_path, "PORT=3000\n").expect("write env");
 
         let store = VaultStore::new(home.path().to_path_buf());
         let service = AppService::new(store);
@@ -1335,5 +1357,34 @@ mod tests {
                 && check.severity == DiagnosticSeverity::Ok
                 && check.detail.contains("doctor-project")
         }));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn write_env_file_uses_restrictive_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let home = TempDir::new().expect("tempdir");
+        let output_dir = TempDir::new().expect("tempdir");
+        let env_path = output_dir.path().join(".env");
+
+        std::fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file("perm-project", &env_path, None, "passphrase")
+            .expect("add project");
+
+        let output_env = output_dir.path().join("output.env");
+        service
+            .write_env_file("perm-project", &output_env, "passphrase")
+            .expect("write env file");
+
+        let metadata = std::fs::metadata(&output_env).expect("metadata");
+        let permissions = metadata.permissions();
+        assert_eq!(permissions.mode() & 0o777, 0o600);
     }
 }

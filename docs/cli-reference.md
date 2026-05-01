@@ -12,8 +12,10 @@ This document describes the current CLI surface.
 | `envlt list` | List stored projects |
 | `envlt remove <project>` | Remove a stored project |
 | `envlt vars` | Show variables and types |
+| `envlt check` | Verify a project against `.env.example` |
 | `envlt diff` | Compare against `.env.example` or another project |
 | `envlt doctor` | Diagnose the local vault and link state |
+| `envlt completions` | Generate shell completion scripts |
 | `envlt set` | Create or update a variable |
 | `envlt unset` | Delete a variable |
 | `envlt use` | Write a `.env` file from the vault |
@@ -158,6 +160,22 @@ Output formats:
 - `--format table` (default)
 - `--format raw`
 - `--format json`
+
+### `envlt check`
+
+Verify that a project satisfies a `.env.example` contract.
+
+```bash
+envlt check --project api-payments .env.example
+envlt check .env.example
+```
+
+Exit behavior:
+
+- `0` when all required variables are present
+- non-zero when variables are missing
+
+This is useful for automation, pre-commit hooks, and CI checks.
 
 ### `envlt diff`
 
@@ -344,3 +362,23 @@ Behavior:
 
 - fails by default if the project already exists
 - replaces the full project snapshot when `--overwrite` is used
+
+### `envlt completions <shell>`
+
+Generate shell completion scripts.
+
+Supported shells:
+
+- `bash`
+- `zsh`
+- `fish`
+- `powershell`
+- `elvish`
+
+Example:
+
+```bash
+envlt completions bash > /usr/local/etc/bash_completion.d/envlt
+envlt completions zsh > /usr/local/share/zsh/site-functions/_envlt
+envlt completions fish > ~/.config/fish/completions/envlt.fish
+```

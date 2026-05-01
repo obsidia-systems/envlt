@@ -127,36 +127,36 @@ fn generate_base58(len: usize) -> String {
 }
 
 fn generate_from_alphabet(len: usize, alphabet: &[u8]) -> String {
+    let alphabet_len = alphabet.len();
+    let max_valid = 256 - (256 % alphabet_len);
     let mut output = String::with_capacity(len);
-    let mut random = [0_u8; 64];
 
     while output.len() < len {
-        OsRng.fill_bytes(&mut random);
-        for byte in random {
-            let index = (byte as usize) % alphabet.len();
-            output.push(alphabet[index] as char);
-            if output.len() == len {
-                break;
-            }
+        let mut byte = 0_u8;
+        OsRng.fill_bytes(std::slice::from_mut(&mut byte));
+        if (byte as usize) >= max_valid {
+            continue;
         }
+        let index = (byte as usize) % alphabet_len;
+        output.push(alphabet[index] as char);
     }
 
     output
 }
 
 fn generate_memorable_password(words: usize) -> String {
+    let word_count = PASSWORD_WORDS.len();
+    let max_valid = 256 - (256 % word_count);
     let mut output = Vec::with_capacity(words);
-    let mut random = [0_u8; 32];
 
     while output.len() < words {
-        OsRng.fill_bytes(&mut random);
-        for byte in random {
-            let index = (byte as usize) % PASSWORD_WORDS.len();
-            output.push(PASSWORD_WORDS[index]);
-            if output.len() == words {
-                break;
-            }
+        let mut byte = 0_u8;
+        OsRng.fill_bytes(std::slice::from_mut(&mut byte));
+        if (byte as usize) >= max_valid {
+            continue;
         }
+        let index = (byte as usize) % word_count;
+        output.push(PASSWORD_WORDS[index]);
     }
 
     output.join("-")

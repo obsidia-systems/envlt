@@ -16,7 +16,7 @@ It does **not** yet match the complete product vision from the original project 
 | Phase 2 export/import bundles | Implemented | Portable `.evlt` bundles are working |
 | Phase 3 variable typing | Implemented for the current milestone | `VarType`, inference, `add --from-example`, `diff`, and `gen` are implemented and usable |
 | Phase 4 cloud sync | Missing | Intentionally deferred |
-| Phase 5 release/distribution | Partial | CI, tagged releases, and Homebrew now exist; signing, notarization, and broader packaging are still missing |
+| Phase 5 release/distribution | Implemented for current strategy | CI, tagged releases, and Homebrew exist; native Windows and Apple notarization are not current targets |
 | Phase 6 Keychain | Partial | Basic system keyring support exists; the broader auth feature set is still incomplete |
 | Phase 7 GUI | Missing | Planned, not started |
 
@@ -56,7 +56,7 @@ It does **not** yet match the complete product vision from the original project 
 - `auth keychain enable`
 - `auth keychain disable`
 - GUI crate and application
-- signed and notarized macOS distribution
+- native Windows support outside WSL
 
 ## Where the implementation intentionally differs
 

@@ -2,6 +2,8 @@
 
 This document summarizes the current security model implemented in `envlt`.
 
+For explicit guarantees, non-goals, assumptions, and user responsibilities, see [Threat Model](threat-model.md).
+
 ## Current security properties
 
 ### Encrypted local source of truth
