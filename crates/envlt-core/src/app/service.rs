@@ -199,7 +199,8 @@ impl AppService {
             .into_iter()
             .filter_map(|(key, value)| {
                 if value.is_empty() {
-                    Some((key.clone(), infer_var_type(&key)))
+                    let var_type = infer_var_type(&key);
+                    Some((key, var_type))
                 } else {
                     None
                 }

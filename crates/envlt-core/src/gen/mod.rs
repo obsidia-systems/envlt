@@ -126,7 +126,8 @@ fn generate_hex(byte_len: usize) -> String {
     OsRng.fill_bytes(&mut bytes);
     let mut output = String::with_capacity(byte_len * 2);
     for byte in bytes {
-        output.push_str(&format!("{byte:02x}"));
+        use std::fmt::Write;
+        write!(&mut output, "{byte:02x}").unwrap();
     }
     output
 }
@@ -134,8 +135,9 @@ fn generate_hex(byte_len: usize) -> String {
 fn generate_base64url_chars(len: usize) -> String {
     let mut bytes = vec![0_u8; len];
     OsRng.fill_bytes(&mut bytes);
-    let encoded = URL_SAFE_NO_PAD.encode(bytes);
-    encoded.chars().take(len).collect()
+    let mut encoded = URL_SAFE_NO_PAD.encode(bytes);
+    encoded.truncate(len);
+    encoded
 }
 
 fn generate_base58(len: usize) -> String {
