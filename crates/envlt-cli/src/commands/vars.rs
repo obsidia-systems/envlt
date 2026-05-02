@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use anyhow::Result;
+use chrono::Utc;
 use envlt_core::{AppService, VarType};
 use serde_json::to_string_pretty;
 
@@ -24,7 +25,7 @@ pub fn run_vars(
         return Ok(ExitCode::SUCCESS);
     }
 
-    let headers = ["key", "type", "value"];
+    let headers = ["key", "type", "value", "last modified"];
     let rows = variables
         .into_iter()
         .map(|variable| {
@@ -32,6 +33,7 @@ pub fn run_vars(
                 variable.key,
                 format_var_type(variable.var_type).to_owned(),
                 format_value(&variable.value, variable.var_type),
+                format_timestamp(variable.updated_at),
             ]
         })
         .collect::<Vec<_>>();
@@ -70,4 +72,8 @@ fn mask_secret(value: &str) -> String {
 
     let visible_prefix: String = value.chars().take(2).collect();
     format!("{visible_prefix}***")
+}
+
+fn format_timestamp(timestamp: chrono::DateTime<Utc>) -> String {
+    timestamp.format("%m-%d %H:%M").to_string()
 }

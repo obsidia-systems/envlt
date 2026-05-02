@@ -1313,3 +1313,143 @@ fn completions_bash_outputs_non_empty_script() {
         .success()
         .stdout(predicate::str::contains("_envlt"));
 }
+
+#[test]
+fn history_shows_variable_events() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "GREETING=hello\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "history-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["set", "--project", "history-project", "GREETING=world"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["history", "--project", "history-project", "GREETING"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"))
+        .stdout(predicate::str::contains("Value updated"));
+}
+
+#[test]
+fn history_masks_secret_values() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "API_KEY=real-secret-value\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "secret-history-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["history", "--project", "secret-history-project", "API_KEY"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("real-secret-value").not())
+        .stdout(predicate::str::contains("********"));
+}
+
+#[test]
+fn project_history_shows_all_events() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "GREETING=hello\nTEMP=val\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "project-history-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "project-history-project",
+            "GREETING=world",
+        ])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["unset", "--project", "project-history-project", "TEMP"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["history", "--project", "project-history-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"))
+        .stdout(predicate::str::contains("Value updated"))
+        .stdout(predicate::str::contains("Deleted"));
+}
+
+#[test]
+fn vars_shows_last_modified_column() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "vars-modified-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["vars", "--project", "vars-modified-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("last modified"));
+}
+
+#[test]
+fn deleted_variable_history_survives() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "TEMP=will-be-deleted\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "survive-history-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["unset", "--project", "survive-history-project", "TEMP"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["history", "--project", "survive-history-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted"))
+        .stdout(predicate::str::contains("TEMP"));
+}
