@@ -384,9 +384,7 @@ impl AppService {
         let mut vault = self.store.load(vault_passphrase)?;
 
         if vault.projects.contains_key(&project.name) && !overwrite_existing {
-            return Err(EnvltError::BundleProjectAlreadyExists {
-                name: project.name,
-            });
+            return Err(EnvltError::BundleProjectAlreadyExists { name: project.name });
         }
 
         let project_name = project.name.clone();

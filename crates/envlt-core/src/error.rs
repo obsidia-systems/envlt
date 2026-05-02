@@ -15,13 +15,13 @@ pub enum EnvltError {
     #[error("vault not found at {path}")]
     VaultNotFound {
         /// Expected vault path.
-        path: PathBuf
+        path: PathBuf,
     },
     /// Attempted to initialize a vault that already exists.
     #[error("vault already exists at {path}")]
     VaultAlreadyExists {
         /// Existing vault path.
-        path: PathBuf
+        path: PathBuf,
     },
     /// Vault version does not match the supported version.
     #[error("unsupported vault version: expected {expected}, got {actual}")]
@@ -29,19 +29,19 @@ pub enum EnvltError {
         /// Supported version.
         expected: u32,
         /// Version found in the file.
-        actual: u32
+        actual: u32,
     },
     /// Requested project was not found in the vault.
     #[error("project '{name}' was not found")]
     ProjectNotFound {
         /// Missing project name.
-        name: String
+        name: String,
     },
     /// Attempted to create a project that already exists.
     #[error("project '{name}' already exists")]
     ProjectAlreadyExists {
         /// Existing project name.
-        name: String
+        name: String,
     },
     /// Requested variable was not found in the project.
     #[error("variable '{key}' was not found in project '{project}'")]
@@ -49,19 +49,19 @@ pub enum EnvltError {
         /// Project containing the variable.
         project: String,
         /// Missing variable key.
-        key: String
+        key: String,
     },
     /// Could not resolve a project from CLI args or `.envlt-link`.
     #[error("could not resolve a project from --project or .envlt-link in {path}")]
     ProjectResolutionFailed {
         /// Directory where resolution was attempted.
-        path: PathBuf
+        path: PathBuf,
     },
     /// Variable assignment is not in `KEY=VALUE` format.
     #[error("invalid variable assignment '{input}', expected KEY=VALUE")]
     InvalidAssignment {
         /// Raw input that failed parsing.
-        input: String
+        input: String,
     },
     /// Failed to parse an `.env` file.
     #[error("failed to parse env file at {path}: {message}")]
@@ -69,13 +69,13 @@ pub enum EnvltError {
         /// File path.
         path: PathBuf,
         /// Parse error message.
-        message: String
+        message: String,
     },
     /// A required example variable was left empty without an override.
     #[error("missing value for example variable '{key}'")]
     MissingExampleValue {
         /// Variable key.
-        key: String
+        key: String,
     },
     /// Failed to parse a `.envlt-link` file.
     #[error("failed to parse project link at {path}: {message}")]
@@ -83,7 +83,7 @@ pub enum EnvltError {
         /// File path.
         path: PathBuf,
         /// Parse error message.
-        message: String
+        message: String,
     },
     /// Bundle magic bytes do not match `ENVL`.
     #[error("bundle magic is invalid")]
@@ -94,7 +94,7 @@ pub enum EnvltError {
         /// Supported version.
         expected: u8,
         /// Version found in the bundle.
-        actual: u8
+        actual: u8,
     },
     /// Bundle data is truncated or structurally invalid.
     #[error("bundle is truncated or malformed")]
@@ -103,7 +103,7 @@ pub enum EnvltError {
     #[error("bundle header is too large: {length} bytes")]
     BundleHeaderTooLarge {
         /// Header length in bytes.
-        length: usize
+        length: usize,
     },
     /// Failed to serialize the bundle header to JSON.
     #[error("failed to encode bundle header: {0}")]
@@ -121,25 +121,25 @@ pub enum EnvltError {
     #[error("bundle project '{name}' already exists")]
     BundleProjectAlreadyExists {
         /// Existing project name.
-        name: String
+        name: String,
     },
     /// Generator type string is not recognized.
     #[error("unsupported generator type '{gen_type}'")]
     UnsupportedGenType {
         /// Unrecognized generator type.
-        gen_type: String
+        gen_type: String,
     },
     /// Requested generator length is invalid.
     #[error("invalid generator length: {length}")]
     InvalidGenLength {
         /// Requested length.
-        length: usize
+        length: usize,
     },
     /// System keyring operation failed.
     #[error("keyring error: {message}")]
     Keyring {
         /// Error message from the keyring backend.
-        message: String
+        message: String,
     },
     /// Vault passphrase is incorrect or the vault is corrupted.
     #[error("vault passphrase is invalid or the vault is corrupted")]
