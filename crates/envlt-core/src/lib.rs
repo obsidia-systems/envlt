@@ -1,10 +1,26 @@
+#![deny(missing_docs)]
+
+//! Core library for envlt — a local-first encrypted environment vault.
+//!
+//! This crate provides vault storage, encryption, environment variable parsing,
+//! and project management primitives. The CLI binary (`envlt-cli`) wraps these
+//! operations in a user-friendly command-line interface.
+
+/// Application service and diagnostic types.
 pub mod app;
+/// Keyring-backed passphrase storage.
 pub mod auth;
+/// Encrypted project bundle format.
 pub mod bundle;
+/// Environment file parser and renderer.
 pub mod env;
+/// Error types used throughout the crate.
 pub mod error;
+/// Secure value generators.
 pub mod gen;
+/// Project link file helpers.
 pub mod link;
+/// Vault storage, encryption, and data models.
 pub mod vault;
 
 pub use app::{

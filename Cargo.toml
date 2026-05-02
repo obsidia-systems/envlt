@@ -33,4 +33,7 @@ toml = "0.8"
 uuid = { version = "1", features = ["v4"] }
 
 [workspace.lints.clippy]
-all = "deny"
+all = { level = "deny", priority = -1 }
+needless_collect = "warn"
+redundant_clone = "warn"
+large_enum_variant = "warn"

@@ -3,3 +3,6 @@
 /.envlt
 /.DS_Store
 
+# AI Skills
+.agents/
+.claude/

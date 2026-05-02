@@ -13,29 +13,45 @@ use crate::{
     vault::Project,
 };
 
+/// Magic bytes at the start of every `.evlt` bundle.
 pub const BUNDLE_MAGIC: [u8; 4] = *b"ENVL";
+/// Current bundle format version.
 pub const BUNDLE_VERSION: u8 = 1;
+/// Length of the ChaCha20-Poly1305 nonce in bytes.
 pub const BUNDLE_NONCE_LEN: usize = 12;
+/// Length of the ChaCha20-Poly1305 authentication tag in bytes.
 pub const BUNDLE_TAG_LEN: usize = 16;
+/// Length of the KDF salt in bytes.
 pub const BUNDLE_SALT_LEN: usize = 16;
 const BUNDLE_KEY_LEN: usize = 32;
 
+/// Metadata header stored inside an encrypted bundle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BundleHeader {
+    /// Name of the exported project.
     pub project: String,
+    /// UTC timestamp when the bundle was created.
     pub exported_at: DateTime<Utc>,
+    /// envlt version that produced the bundle.
     pub envlt_version: String,
+    /// Base64-encoded KDF salt.
     pub kdf_salt_b64: String,
 }
 
+/// In-memory representation of an encrypted `.evlt` bundle.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BundleArchive {
+    /// Parsed header metadata.
     pub header: BundleHeader,
+    /// Encryption nonce.
     pub nonce: [u8; BUNDLE_NONCE_LEN],
+    /// Encrypted payload (project TOML).
     pub ciphertext: Vec<u8>,
+    /// Authentication tag.
     pub tag: [u8; BUNDLE_TAG_LEN],
 }
 
+/// Serialize a `BundleArchive` into its on-disk byte representation.
 pub fn encode_archive(archive: &BundleArchive) -> Result<Vec<u8>> {
     let header_json = serde_json::to_vec(&archive.header)?;
     let header_len: u16 =
@@ -64,6 +80,7 @@ pub fn encode_archive(archive: &BundleArchive) -> Result<Vec<u8>> {
     Ok(output)
 }
 
+/// Deserialize a `BundleArchive` from raw bytes.
 pub fn decode_archive(bytes: &[u8]) -> Result<BundleArchive> {
     if bytes.len() < 4 + 1 + 2 + BUNDLE_NONCE_LEN + BUNDLE_TAG_LEN {
         return Err(EnvltError::InvalidBundleLayout);
@@ -111,6 +128,7 @@ pub fn decode_archive(bytes: &[u8]) -> Result<BundleArchive> {
     })
 }
 
+/// Encrypt a project into a portable `.evlt` bundle.
 pub fn encrypt_project_bundle(
     project: &Project,
     bundle_passphrase: &str,
@@ -152,6 +170,7 @@ pub fn encrypt_project_bundle(
     })
 }
 
+/// Decrypt a `.evlt` bundle and restore the project it contains.
 pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> Result<Project> {
     let archive = decode_archive(bundle_bytes)?;
     let salt = STANDARD_NO_PAD

@@ -14,6 +14,7 @@ use crate::{
     },
 };
 
+/// Manages the on-disk location, encryption, and backup of the vault file.
 #[derive(Debug, Clone)]
 pub struct VaultStore {
     root_dir: PathBuf,
@@ -22,6 +23,7 @@ pub struct VaultStore {
 }
 
 impl VaultStore {
+    /// Create a new `VaultStore` rooted at the given directory.
     pub fn new(root_dir: PathBuf) -> Self {
         let vault_path = root_dir.join("vault.age");
         let backup_path = root_dir.join("vault.age.bak");
@@ -32,6 +34,7 @@ impl VaultStore {
         }
     }
 
+    /// Create a `VaultStore` from `ENVLT_HOME` or the default `~/.envlt` path.
     pub fn from_env() -> Result<Self> {
         if let Some(root) = std::env::var_os("ENVLT_HOME") {
             return Ok(Self::new(PathBuf::from(root)));
@@ -41,22 +44,27 @@ impl VaultStore {
         Ok(Self::new(home.join(".envlt")))
     }
 
+    /// Path to the envlt home directory.
     pub fn root_dir(&self) -> &Path {
         &self.root_dir
     }
 
+    /// Path to the encrypted vault file (`vault.age`).
     pub fn vault_path(&self) -> &Path {
         &self.vault_path
     }
 
+    /// Path to the automatic backup file (`vault.age.bak`).
     pub fn backup_path(&self) -> &Path {
         &self.backup_path
     }
 
+    /// Whether the vault file already exists on disk.
     pub fn exists(&self) -> bool {
         self.vault_path.exists()
     }
 
+    /// Create a new empty vault and encrypt it with the given passphrase.
     pub fn initialize(&self, passphrase: &str) -> Result<()> {
         if self.exists() {
             return Err(EnvltError::VaultAlreadyExists {
@@ -69,6 +77,7 @@ impl VaultStore {
         self.save(&vault, passphrase)
     }
 
+    /// Load and decrypt the vault, verifying its version.
     pub fn load(&self, passphrase: &str) -> Result<VaultData> {
         if !self.exists() {
             return Err(EnvltError::VaultNotFound {
@@ -94,6 +103,7 @@ impl VaultStore {
         Ok(vault)
     }
 
+    /// Encrypt and atomically save the vault, creating a backup first.
     pub fn save(&self, vault: &VaultData, passphrase: &str) -> Result<()> {
         fs::create_dir_all(&self.root_dir)?;
         if self.vault_path.exists() {

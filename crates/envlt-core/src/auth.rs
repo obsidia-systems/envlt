@@ -18,21 +18,28 @@ use crate::{
 const KEYRING_SERVICE_PREFIX: &str = "envlt-";
 const KEYRING_ACCOUNT: &str = "vault";
 
+/// Authentication state reported by `auth_status`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthStatus {
+    /// Whether `ENVLT_PASSPHRASE` is set in the environment.
     pub env_var_present: bool,
+    /// Whether a passphrase is stored in the system keyring.
     pub keyring_available: bool,
+    /// Keyring service target derived from the vault store path.
     pub keyring_target: String,
 }
 
+/// Load a passphrase from the system keyring if one is stored.
 pub fn load_stored_passphrase(store: &VaultStore) -> Result<Option<String>> {
     load_with_backend(&system_backend(), store)
 }
 
+/// Save a passphrase to the system keyring after verifying it can be read back.
 pub fn save_stored_passphrase(store: &VaultStore, passphrase: &str) -> Result<()> {
     save_with_backend(&system_backend(), store, passphrase)
 }
 
+/// Remove the stored passphrase from the system keyring.
 pub fn clear_stored_passphrase(store: &VaultStore) -> Result<bool> {
     clear_with_backend(&system_backend(), store)
 }
@@ -83,6 +90,7 @@ fn clear_with_backend(backend: &dyn KeyringBackend, store: &VaultStore) -> Resul
     Ok(primary_removed || legacy_removed)
 }
 
+/// Report whether environment or keyring authentication sources are available.
 pub fn auth_status(store: &VaultStore) -> Result<AuthStatus> {
     let env_var_present = env::var_os("ENVLT_PASSPHRASE").is_some();
     let keyring_target = keyring_target(store)?;

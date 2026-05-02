@@ -15,6 +15,7 @@ struct ProjectLink {
     envlt_version: String,
 }
 
+/// Write a `.envlt-link` file in `project_root` pointing to `project_name`.
 pub fn write_project_link(project_root: &Path, project_name: &str) -> Result<()> {
     let link_path = project_root.join(LINK_FILE_NAME);
     let link = ProjectLink {
@@ -26,6 +27,7 @@ pub fn write_project_link(project_root: &Path, project_name: &str) -> Result<()>
     Ok(())
 }
 
+/// Read the linked project name from `.envlt-link` in `project_root`, if present.
 pub fn read_project_link(project_root: &Path) -> Result<Option<String>> {
     let link_path = project_root.join(LINK_FILE_NAME);
     if !link_path.exists() {
@@ -40,6 +42,7 @@ pub fn read_project_link(project_root: &Path) -> Result<Option<String>> {
     Ok(Some(link.project))
 }
 
+/// Remove `.envlt-link` from `project_root` if it exists.
 pub fn remove_project_link(project_root: &Path) -> Result<bool> {
     let link_path = project_root.join(LINK_FILE_NAME);
     if !link_path.exists() {

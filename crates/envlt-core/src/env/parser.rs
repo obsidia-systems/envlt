@@ -2,11 +2,13 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 use crate::error::{EnvltError, Result};
 
+/// Parse a `.env` file from disk into a sorted map of variables.
 pub fn parse_env_file(path: &Path) -> Result<BTreeMap<String, String>> {
     let content = fs::read_to_string(path)?;
     parse_env_str(path, &content)
 }
 
+/// Parse `.env` formatted content from a string.
 pub fn parse_env_str(path: &Path, content: &str) -> Result<BTreeMap<String, String>> {
     let mut variables = BTreeMap::new();
 

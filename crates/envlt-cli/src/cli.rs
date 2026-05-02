@@ -11,7 +11,9 @@ pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<String> {
     match load_stored_passphrase(store) {
         Ok(Some(passphrase)) => return Ok(passphrase),
         Ok(None) => {}
-        Err(_) => {}
+        Err(error) => {
+            eprintln!("Warning: failed to load stored passphrase: {error}");
+        }
     }
 
     prompt_passphrase(confirm)

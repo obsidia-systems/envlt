@@ -22,23 +22,34 @@ const PASSWORD_WORDS: &[&str] = &[
     "valley", "velvet", "violet", "willow",
 ];
 
+/// Built-in generator presets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GenType {
+    /// 64-character hex string suitable for JWT secrets.
     JwtSecret,
+    /// Random UUID (v4).
     Uuid,
+    /// 40-character base-58 string.
     ApiKey,
+    /// 48-character URL-safe base64 string.
     Token,
+    /// Four-word memorable password.
     Password,
 }
 
+/// Character set for custom value generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Charset {
+    /// Alphanumeric characters.
     Alnum,
+    /// Hexadecimal characters.
     Hex,
+    /// Alphanumeric plus symbols.
     Symbols,
 }
 
 impl GenType {
+    /// Parse a generator type from its string identifier.
     pub fn parse(input: &str) -> Result<Self> {
         match input {
             "jwt-secret" => Ok(Self::JwtSecret),
@@ -52,6 +63,7 @@ impl GenType {
         }
     }
 
+    /// Return the canonical string identifier for this generator type.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::JwtSecret => "jwt-secret",
@@ -62,6 +74,7 @@ impl GenType {
         }
     }
 
+    /// Default `VarType` assigned when a generated value is stored in the vault.
     pub fn default_var_type(self) -> VarType {
         match self {
             Self::JwtSecret | Self::ApiKey | Self::Token | Self::Password => VarType::Secret,
@@ -70,6 +83,7 @@ impl GenType {
     }
 }
 
+/// Return the list of all supported generator presets.
 pub fn supported_gen_types() -> &'static [GenType] {
     const TYPES: &[GenType] = &[
         GenType::JwtSecret,
@@ -81,6 +95,7 @@ pub fn supported_gen_types() -> &'static [GenType] {
     TYPES
 }
 
+/// Generate a secure value using a built-in preset.
 pub fn generate_value(gen_type: GenType) -> String {
     match gen_type {
         GenType::JwtSecret => generate_hex(32),
@@ -91,6 +106,7 @@ pub fn generate_value(gen_type: GenType) -> String {
     }
 }
 
+/// Generate a custom-length value from the requested character set.
 pub fn generate_custom_value(len: usize, charset: Charset) -> Result<String> {
     if len == 0 {
         return Err(EnvltError::InvalidGenLength { length: len });

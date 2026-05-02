@@ -14,50 +14,76 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+/// AppService.
 pub struct AppService {
     store: VaultStore,
 }
 
 #[derive(Debug, Clone)]
+/// RunEnvironment.
 pub struct RunEnvironment {
+    /// variables.
     pub variables: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// VariableView.
 pub struct VariableView {
+    /// key.
     pub key: String,
+    /// value.
     pub value: String,
+    /// var_type.
     pub var_type: VarType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// ExampleDiff.
 pub struct ExampleDiff {
+    /// project.
     pub project: String,
+    /// example_path.
     pub example_path: PathBuf,
+    /// missing_in_vault.
     pub missing_in_vault: Vec<String>,
+    /// extra_in_vault.
     pub extra_in_vault: Vec<String>,
+    /// shared_keys.
     pub shared_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// ProjectDiff.
 pub struct ProjectDiff {
+    /// left_project.
     pub left_project: String,
+    /// right_project.
     pub right_project: String,
+    /// only_in_left.
     pub only_in_left: Vec<String>,
+    /// only_in_right.
     pub only_in_right: Vec<String>,
+    /// shared_keys.
     pub shared_keys: Vec<String>,
+    /// changed_values.
     pub changed_values: Vec<String>,
+    /// changed_types.
     pub changed_types: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// DiagnosticSeverity.
 pub enum DiagnosticSeverity {
+    /// Ok.
     Ok,
+    /// Warn.
     Warn,
+    /// Error.
     Error,
 }
 
 impl DiagnosticSeverity {
+    /// fn as_str(self) -> &'static str {.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Ok => "ok",
@@ -68,24 +94,34 @@ impl DiagnosticSeverity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// DiagnosticCheck.
 pub struct DiagnosticCheck {
+    /// code.
     pub code: String,
+    /// severity.
     pub severity: DiagnosticSeverity,
+    /// detail.
     pub detail: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// DoctorReport.
 pub struct DoctorReport {
+    /// checks.
     pub checks: Vec<DiagnosticCheck>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// RemoveProjectResult.
 pub struct RemoveProjectResult {
+    /// project.
     pub project: String,
+    /// removed_link.
     pub removed_link: bool,
 }
 
 impl DoctorReport {
+    /// fn ok_count(&self) -> usize {.
     pub fn ok_count(&self) -> usize {
         self.checks
             .iter()
@@ -93,6 +129,7 @@ impl DoctorReport {
             .count()
     }
 
+    /// fn warn_count(&self) -> usize {.
     pub fn warn_count(&self) -> usize {
         self.checks
             .iter()
@@ -100,6 +137,7 @@ impl DoctorReport {
             .count()
     }
 
+    /// fn error_count(&self) -> usize {.
     pub fn error_count(&self) -> usize {
         self.checks
             .iter()
@@ -107,24 +145,29 @@ impl DoctorReport {
             .count()
     }
 
+    /// fn has_errors(&self) -> bool {.
     pub fn has_errors(&self) -> bool {
         self.error_count() > 0
     }
 }
 
 impl AppService {
+    /// fn new(store.
     pub fn new(store: VaultStore) -> Self {
         Self { store }
     }
 
+    /// fn store(&self) -> &VaultStore {.
     pub fn store(&self) -> &VaultStore {
         &self.store
     }
 
+    /// fn init_vault(&self, passphrase.
     pub fn init_vault(&self, passphrase: &str) -> Result<()> {
         self.store.initialize(passphrase)
     }
 
+    /// fn add_project_from_env_file(.
     pub fn add_project_from_env_file(
         &self,
         project_name: &str,
@@ -136,6 +179,7 @@ impl AppService {
         self.add_project_from_variables(project_name, variables, project_path, passphrase)
     }
 
+    /// fn add_project_from_env_str(.
     pub fn add_project_from_env_str(
         &self,
         project_name: &str,
@@ -148,6 +192,7 @@ impl AppService {
         self.add_project_from_variables(project_name, variables, project_path, passphrase)
     }
 
+    /// fn missing_example_inputs(&self, example_path.
     pub fn missing_example_inputs(&self, example_path: &Path) -> Result<Vec<(String, VarType)>> {
         let variables = parse_env_file(example_path)?;
         Ok(variables
@@ -192,6 +237,7 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
+    /// fn add_project_from_example(.
     pub fn add_project_from_example(
         &self,
         project_name: &str,
@@ -240,10 +286,12 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
+    /// fn write_project_link(&self, project_root.
     pub fn write_project_link(&self, project_root: &Path, project_name: &str) -> Result<()> {
         write_project_link(project_root, project_name)
     }
 
+    /// fn remove_project(.
     pub fn remove_project(
         &self,
         project_name: &str,
@@ -270,6 +318,7 @@ impl AppService {
         })
     }
 
+    /// fn resolve_project_name(.
     pub fn resolve_project_name(
         &self,
         explicit_project: Option<&str>,
@@ -288,15 +337,18 @@ impl AppService {
             .ok_or(EnvltError::ProjectResolutionFailed { path: current_dir })
     }
 
+    /// fn list_projects(&self, passphrase.
     pub fn list_projects(&self, passphrase: &str) -> Result<Vec<Project>> {
         let vault = self.store.load(passphrase)?;
         Ok(vault.projects.into_values().collect())
     }
 
+    /// fn verify_vault_access(&self, passphrase.
     pub fn verify_vault_access(&self, passphrase: &str) -> Result<()> {
         self.store.load(passphrase).map(|_| ())
     }
 
+    /// fn project_snapshot(&self, project_name.
     pub fn project_snapshot(&self, project_name: &str, passphrase: &str) -> Result<Project> {
         let vault = self.store.load(passphrase)?;
         vault
@@ -308,6 +360,7 @@ impl AppService {
             })
     }
 
+    /// fn export_project_bundle(.
     pub fn export_project_bundle(
         &self,
         project_name: &str,
@@ -318,6 +371,7 @@ impl AppService {
         encrypt_project_bundle(&project, bundle_passphrase, env!("CARGO_PKG_VERSION"))
     }
 
+    /// fn import_project_bundle(.
     pub fn import_project_bundle(
         &self,
         bundle_bytes: &[u8],
@@ -330,7 +384,7 @@ impl AppService {
 
         if vault.projects.contains_key(&project.name) && !overwrite_existing {
             return Err(EnvltError::BundleProjectAlreadyExists {
-                name: project.name.clone(),
+                name: project.name,
             });
         }
 
@@ -341,6 +395,7 @@ impl AppService {
         Ok(project_name)
     }
 
+    /// fn set_variable(.
     pub fn set_variable(
         &self,
         project_name: &str,
@@ -379,6 +434,7 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
+    /// fn unset_variable(&self, project_name.
     pub fn unset_variable(&self, project_name: &str, key: &str, passphrase: &str) -> Result<()> {
         let mut vault = self.store.load(passphrase)?;
         let project =
@@ -402,10 +458,12 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
+    /// fn generate_value(&self, gen_type.
     pub fn generate_value(&self, gen_type: GenType) -> String {
         generate_value(gen_type)
     }
 
+    /// fn generate_and_store(.
     pub fn generate_and_store(
         &self,
         project_name: &str,
@@ -424,6 +482,7 @@ impl AppService {
         Ok(value)
     }
 
+    /// fn project_variables(.
     pub fn project_variables(
         &self,
         project_name: &str,
@@ -445,6 +504,7 @@ impl AppService {
             .collect())
     }
 
+    /// fn project_variable_views(.
     pub fn project_variable_views(
         &self,
         project_name: &str,
@@ -470,6 +530,7 @@ impl AppService {
             .collect())
     }
 
+    /// fn diff_project_against_example(.
     pub fn diff_project_against_example(
         &self,
         project_name: &str,
@@ -514,6 +575,7 @@ impl AppService {
         })
     }
 
+    /// fn diff_projects(.
     pub fn diff_projects(
         &self,
         left_project: &str,
@@ -595,6 +657,7 @@ impl AppService {
         })
     }
 
+    /// fn write_env_file(.
     pub fn write_env_file(
         &self,
         project_name: &str,
@@ -628,6 +691,7 @@ impl AppService {
         Ok(())
     }
 
+    /// fn render_project_env_content(.
     pub fn render_project_env_content(
         &self,
         project_name: &str,
@@ -637,6 +701,7 @@ impl AppService {
         Ok(render_env(&variables))
     }
 
+    /// fn build_run_environment(.
     pub fn build_run_environment(
         &self,
         project_name: &str,
@@ -646,6 +711,7 @@ impl AppService {
         Ok(RunEnvironment { variables })
     }
 
+    /// fn doctor(&self, current_dir.
     pub fn doctor(&self, current_dir: Option<&Path>, passphrase: Option<&str>) -> DoctorReport {
         let mut checks = Vec::new();
         let root_dir = self.store.root_dir();
