@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-01
+
+### Fixed
+
+- Pinned `rpassword` to `=7.4.0` to avoid `let` chains syntax incompatible with CI toolchain
+- Resolved `--locked` release build failure caused by `rpassword 7.5.1`
+
 ## [0.2.1] - 2026-05-01
 
 ### Fixed
