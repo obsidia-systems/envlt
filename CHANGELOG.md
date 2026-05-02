@@ -6,6 +6,28 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-02
+
+### Added
+
+- **Variable Activity Log**: per-project audit trail that records variable lifecycle events (creation, updates, type changes, deletion) in an encrypted `activity_log` attached to each `Project`
+- New `envlt history` command to inspect activity logs at project or variable level, with `--format table` (default), `--format raw`, and `--format json`
+- New `ActivityEvent` and `ActivityAction` domain types in `envlt-core`
+- Automatic secret masking in history entries: `Secret` variables store `None` for old/new values; `Config` and `Plain` store values in clear
+- `Project::push_activity_event` with FIFO limit (default 20 events per project, configurable via `ENVLT_HISTORY_LIMIT`)
+- `AppService::project_activity_log` and `AppService::variable_history` query methods
+- Activity events are generated automatically by `set_variable`, `unset_variable`, `add_project_from_env_file`, `add_project_from_example`, and `import_project_bundle`
+- Import with `--overwrite` preserves existing activity log and appends per-variable `VariableUpdated` / `VariableTypeChanged` / `VariableCreated` events
+- `envlt vars` now displays a `last modified` column with per-variable timestamps
+- Vault format version bumped from `1` to `2`; `VaultStore::load()` automatically migrates v1 vaults to v2 on read (next `save()` persists in new format)
+- Unit tests for event generation, secret masking, log limit enforcement, and v1→v2 migration
+- Integration tests for `history` command output, secret masking in stdout, deleted variable history survival, and `vars` last-modified column
+
+### Changed
+
+- `VariableView` now includes `updated_at` field for display in `vars` output
+- `envlt-cli/Cargo.toml` adds `chrono` dependency for timestamp formatting
+
 ## [0.2.2] - 2026-05-01
 
 ### Fixed

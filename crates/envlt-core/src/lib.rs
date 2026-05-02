@@ -34,4 +34,7 @@ pub use auth::{
 pub use env::{parse_env_file, parse_env_str, render_env};
 pub use error::{EnvltError, Result};
 pub use gen::{generate_custom_value, generate_value, supported_gen_types, Charset, GenType};
-pub use vault::{infer_var_type, Project, VarType, Variable, VaultData, VaultStore};
+pub use vault::{
+    infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultData,
+    VaultStore,
+};

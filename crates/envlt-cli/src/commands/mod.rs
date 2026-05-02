@@ -6,6 +6,7 @@ pub mod diff;
 pub mod doctor;
 pub mod export;
 pub mod gen;
+pub mod history;
 pub mod import;
 pub mod init;
 pub mod list;

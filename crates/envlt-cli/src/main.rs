@@ -15,6 +15,7 @@ use commands::{
     doctor::run_doctor,
     export::run_export,
     gen::{run_gen, GenOptions},
+    history::run_history,
     import::run_import,
     init::run_init,
     list::run_list,
@@ -106,6 +107,11 @@ fn real_main() -> Result<ExitCode> {
         Commands::Unset { project, key } => run_unset(&service, &project, &key),
         Commands::Use { project, out } => run_use(&service, &project, &out),
         Commands::Run { project, command } => run_run(&service, &project, &command),
+        Commands::History {
+            project,
+            key,
+            format,
+        } => run_history(&service, &project, key.as_deref(), format),
     }
 }
 
@@ -331,6 +337,21 @@ enum Commands {
             help = "Output path for the rendered env file"
         )]
         out: PathBuf,
+    },
+    #[command(
+        about = "Show the activity log for a project or variable",
+        long_about = "Display a durable audit trail of variable lifecycle events. Use without a key to show the full project log, or pass a variable key to filter its history. Secret values are masked automatically."
+    )]
+    History {
+        #[arg(
+            long,
+            help = "Project to inspect; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
+        #[arg(help = "Variable key to show history for")]
+        key: Option<String>,
     },
     #[command(
         about = "Delete a project variable",

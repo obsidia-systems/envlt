@@ -78,6 +78,11 @@ impl VaultStore {
     }
 
     /// Load and decrypt the vault, verifying its version.
+    ///
+    /// Automatically migrates vaults from version 1 to version 2 by
+    /// accepting v1 on load (thanks to `serde(default)` on `activity_log`)
+    /// and setting the in-memory version to 2 so the next `save()` persists
+    /// the vault in the new format.
     pub fn load(&self, passphrase: &str) -> Result<VaultData> {
         if !self.exists() {
             return Err(EnvltError::VaultNotFound {
@@ -91,7 +96,11 @@ impl VaultStore {
             path: self.vault_path.clone(),
             message: format!("vault content is not valid UTF-8: {err}"),
         })?;
-        let vault: VaultData = toml::from_str(&plaintext)?;
+        let mut vault: VaultData = toml::from_str(&plaintext)?;
+
+        if vault.version == 1 {
+            vault.version = VAULT_VERSION;
+        }
 
         if vault.version != VAULT_VERSION {
             return Err(EnvltError::UnsupportedVaultVersion {

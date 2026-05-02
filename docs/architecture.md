@@ -80,12 +80,16 @@ Core domain types:
 - `Project`
 - `Variable`
 - `VarType`
+- `ActivityEvent`
+- `ActivityAction`
 
 Current `VarType` values:
 
 - `Secret`
 - `Config`
 - `Plain`
+
+Each `Project` maintains an `activity_log` (`Vec<ActivityEvent>`) that records variable lifecycle events. The log is part of the encrypted vault and travels with `.evlt` bundles. It survives variable deletion because it lives at the project level, not inside each `Variable`.
 
 ## Implemented persistence guarantees
 

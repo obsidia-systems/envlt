@@ -12,6 +12,7 @@ This document describes the current CLI surface.
 | `envlt list` | List stored projects |
 | `envlt remove <project>` | Remove a stored project |
 | `envlt vars` | Show variables and types |
+| `envlt history` | Show the activity log for a project or variable |
 | `envlt check` | Verify a project against `.env.example` |
 | `envlt diff` | Compare against `.env.example` or another project |
 | `envlt doctor` | Diagnose the local vault and link state |
@@ -154,6 +155,32 @@ Output behavior:
 
 - `Secret` values are masked
 - `Config` and `Plain` values are shown
+
+Output formats:
+
+- `--format table` (default)
+- `--format raw`
+- `--format json`
+
+### `envlt history`
+
+Show the activity log for a project or a specific variable.
+
+```bash
+envlt history --project my-api
+envlt history --project my-api HELLO_WORLD
+envlt history HELLO_WORLD
+envlt history --project my-api --format raw
+```
+
+Behavior:
+
+- without a key, shows the full project activity log
+- with a key, shows only events for that variable
+- secret values are masked automatically (`********`)
+- events include creation, updates, type changes, and deletion
+- the log survives variable deletion
+- the default per-project limit is 20 events (configurable via `ENVLT_HISTORY_LIMIT`)
 
 Output formats:
 

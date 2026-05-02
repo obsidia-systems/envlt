@@ -4,13 +4,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
+
 use crate::{
     bundle::{decrypt_project_bundle, encrypt_project_bundle},
     env::{parse_env_file, parse_env_str, render_env},
     error::{EnvltError, Result},
     gen::{generate_value, GenType},
     link::{read_project_link, remove_project_link, write_project_link},
-    vault::{infer_var_type, Project, VarType, Variable, VaultStore},
+    vault::{
+        infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultStore,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -35,6 +39,8 @@ pub struct VariableView {
     pub value: String,
     /// var_type.
     pub var_type: VarType,
+    /// updated_at.
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,6 +234,15 @@ impl AppService {
             .into_iter()
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
+                let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
+                project.push_activity_event(ActivityEvent::new(
+                    ActivityAction::VariableCreated,
+                    &key,
+                    None,
+                    new_value,
+                    None,
+                    None,
+                ));
                 (key, variable)
             })
             .collect();
@@ -277,6 +292,15 @@ impl AppService {
             .into_iter()
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
+                let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
+                project.push_activity_event(ActivityEvent::new(
+                    ActivityAction::VariableCreated,
+                    &key,
+                    None,
+                    new_value,
+                    None,
+                    None,
+                ));
                 (key, variable)
             })
             .collect();
@@ -361,6 +385,46 @@ impl AppService {
             })
     }
 
+    /// Return the full activity log for a project.
+    pub fn project_activity_log(
+        &self,
+        project_name: &str,
+        passphrase: &str,
+    ) -> Result<Vec<ActivityEvent>> {
+        let vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        Ok(project.activity_log.clone())
+    }
+
+    /// Return the activity log for a variable, filtered from the project's log.
+    pub fn variable_history(
+        &self,
+        project_name: &str,
+        key: &str,
+        passphrase: &str,
+    ) -> Result<Vec<ActivityEvent>> {
+        let vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        Ok(project
+            .activity_log
+            .iter()
+            .filter(|event| event.variable_key == key)
+            .cloned()
+            .collect())
+    }
+
     /// fn export_project_bundle(.
     pub fn export_project_bundle(
         &self,
@@ -380,14 +444,91 @@ impl AppService {
         bundle_passphrase: &str,
         overwrite_existing: bool,
     ) -> Result<String> {
-        let project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
+        let mut project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
         let mut vault = self.store.load(vault_passphrase)?;
 
-        if vault.projects.contains_key(&project.name) && !overwrite_existing {
-            return Err(EnvltError::BundleProjectAlreadyExists { name: project.name });
+        let project_name = project.name.clone();
+
+        if let Some(existing) = vault.projects.get(&project_name) {
+            if !overwrite_existing {
+                return Err(EnvltError::BundleProjectAlreadyExists { name: project_name });
+            }
+
+            // Preserve existing activity log and append import events.
+            project.activity_log = existing.activity_log.clone();
+
+            let import_events: Vec<ActivityEvent> = project
+                .variables
+                .iter()
+                .flat_map(|(key, variable)| match existing.variables.get(key) {
+                    Some(old_var) => {
+                        let mut events = Vec::new();
+                        if old_var.value != variable.value {
+                            let old_value =
+                                ActivityEvent::masked_value(&old_var.value, old_var.var_type);
+                            let new_value =
+                                ActivityEvent::masked_value(&variable.value, variable.var_type);
+                            events.push(ActivityEvent::new(
+                                ActivityAction::VariableUpdated,
+                                key,
+                                old_value,
+                                new_value,
+                                None,
+                                None,
+                            ));
+                        }
+                        if old_var.var_type != variable.var_type {
+                            events.push(ActivityEvent::new(
+                                ActivityAction::VariableTypeChanged,
+                                key,
+                                None,
+                                None,
+                                Some(old_var.var_type),
+                                Some(variable.var_type),
+                            ));
+                        }
+                        events
+                    }
+                    None => {
+                        let new_value =
+                            ActivityEvent::masked_value(&variable.value, variable.var_type);
+                        vec![ActivityEvent::new(
+                            ActivityAction::VariableCreated,
+                            key,
+                            None,
+                            new_value,
+                            None,
+                            None,
+                        )]
+                    }
+                })
+                .collect();
+
+            for event in import_events {
+                project.push_activity_event(event);
+            }
+        } else {
+            let import_events: Vec<ActivityEvent> = project
+                .variables
+                .iter()
+                .map(|(key, variable)| {
+                    let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
+                    ActivityEvent::new(
+                        ActivityAction::VariableCreated,
+                        key,
+                        None,
+                        new_value,
+                        None,
+                        None,
+                    )
+                })
+                .collect();
+
+            for event in import_events {
+                project.push_activity_event(event);
+            }
         }
 
-        let project_name = project.name.clone();
         vault.projects.insert(project_name.clone(), project);
         vault.touch();
         self.store.save(&vault, vault_passphrase)?;
@@ -414,9 +555,40 @@ impl AppService {
 
         match project.variables.get_mut(key) {
             Some(variable) => {
+                let old_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
+                let old_type = variable.var_type;
+
+                let value_changed = variable.value != value;
+                let type_changed = var_type.is_some_and(|vt| vt != variable.var_type);
+
                 variable.set(value);
                 if let Some(var_type) = var_type {
                     variable.set_type(var_type);
+                }
+
+                let new_type = variable.var_type;
+
+                if type_changed {
+                    project.push_activity_event(ActivityEvent::new(
+                        ActivityAction::VariableTypeChanged,
+                        key,
+                        None,
+                        None,
+                        Some(old_type),
+                        Some(new_type),
+                    ));
+                }
+
+                if value_changed {
+                    let new_value = ActivityEvent::masked_value(value, new_type);
+                    project.push_activity_event(ActivityEvent::new(
+                        ActivityAction::VariableUpdated,
+                        key,
+                        old_value,
+                        new_value,
+                        None,
+                        None,
+                    ));
                 }
             }
             None => {
@@ -424,7 +596,17 @@ impl AppService {
                     Some(var_type) => Variable::new_with_type(value.to_owned(), var_type),
                     None => Variable::new(key, value.to_owned()),
                 };
+                let new_type = variable.var_type;
+                let new_value = ActivityEvent::masked_value(value, new_type);
                 project.variables.insert(key.to_owned(), variable);
+                project.push_activity_event(ActivityEvent::new(
+                    ActivityAction::VariableCreated,
+                    key,
+                    None,
+                    new_value,
+                    None,
+                    None,
+                ));
             }
         }
 
@@ -444,12 +626,24 @@ impl AppService {
                     name: project_name.to_owned(),
                 })?;
 
-        let removed = project.variables.remove(key).is_some();
-        if !removed {
+        let removed = project.variables.remove(key);
+        if removed.is_none() {
             return Err(EnvltError::VariableNotFound {
                 project: project_name.to_owned(),
                 key: key.to_owned(),
             });
+        }
+
+        if let Some(variable) = removed {
+            let old_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
+            project.push_activity_event(ActivityEvent::new(
+                ActivityAction::VariableDeleted,
+                key,
+                old_value,
+                None,
+                None,
+                None,
+            ));
         }
 
         project.touch();
@@ -525,6 +719,7 @@ impl AppService {
                 key: key.clone(),
                 value: variable.value.clone(),
                 var_type: variable.var_type,
+                updated_at: variable.updated_at,
             })
             .collect())
     }
@@ -876,6 +1071,7 @@ mod tests {
     use super::{
         AppService, DiagnosticSeverity, ExampleDiff, ProjectDiff, RemoveProjectResult, VariableView,
     };
+    use crate::vault::ActivityAction;
     use crate::{GenType, VarType, VaultStore};
 
     #[test]
@@ -1061,6 +1257,9 @@ mod tests {
             )
             .expect("add project");
 
+        let project = service
+            .project_snapshot("typed-project", "passphrase")
+            .expect("snapshot");
         let views = service
             .project_variable_views("typed-project", "passphrase")
             .expect("variable views");
@@ -1072,11 +1271,13 @@ mod tests {
                     key: "API_KEY".to_owned(),
                     value: "abc123".to_owned(),
                     var_type: VarType::Secret,
+                    updated_at: project.variables.get("API_KEY").unwrap().updated_at,
                 },
                 VariableView {
                     key: "PORT".to_owned(),
                     value: "3000".to_owned(),
                     var_type: VarType::Config,
+                    updated_at: project.variables.get("PORT").unwrap().updated_at,
                 },
             ]
         );
@@ -1451,5 +1652,238 @@ mod tests {
         let metadata = std::fs::metadata(&output_env).expect("metadata");
         let permissions = metadata.permissions();
         assert_eq!(permissions.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn set_variable_generates_created_event() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        service
+            .set_variable(
+                "test-project",
+                "GREETING",
+                "hello",
+                Some(VarType::Plain),
+                "passphrase",
+            )
+            .expect("set variable");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        let created = log
+            .iter()
+            .find(|e| e.action == ActivityAction::VariableCreated && e.variable_key == "GREETING");
+        assert!(created.is_some(), "expected VariableCreated event");
+        assert_eq!(created.unwrap().new_value, Some("hello".to_owned()));
+    }
+
+    #[test]
+    fn set_variable_generates_updated_event() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        service
+            .set_variable("test-project", "PORT", "4000", None, "passphrase")
+            .expect("set variable");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        let updated = log
+            .iter()
+            .find(|e| e.action == ActivityAction::VariableUpdated && e.variable_key == "PORT");
+        assert!(updated.is_some(), "expected VariableUpdated event");
+        assert_eq!(updated.unwrap().old_value, Some("3000".to_owned()));
+        assert_eq!(updated.unwrap().new_value, Some("4000".to_owned()));
+    }
+
+    #[test]
+    fn set_variable_generates_type_changed_event() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        service
+            .set_variable(
+                "test-project",
+                "PORT",
+                "3000",
+                Some(VarType::Secret),
+                "passphrase",
+            )
+            .expect("set variable");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        let type_changed = log
+            .iter()
+            .find(|e| e.action == ActivityAction::VariableTypeChanged && e.variable_key == "PORT");
+        assert!(type_changed.is_some(), "expected VariableTypeChanged event");
+        assert_eq!(type_changed.unwrap().old_type, Some(VarType::Config));
+        assert_eq!(type_changed.unwrap().new_type, Some(VarType::Secret));
+    }
+
+    #[test]
+    fn unset_variable_generates_deleted_event() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        service
+            .unset_variable("test-project", "PORT", "passphrase")
+            .expect("unset variable");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        let deleted = log
+            .iter()
+            .find(|e| e.action == ActivityAction::VariableDeleted && e.variable_key == "PORT");
+        assert!(deleted.is_some(), "expected VariableDeleted event");
+        assert_eq!(deleted.unwrap().old_value, Some("3000".to_owned()));
+    }
+
+    #[test]
+    fn activity_log_masks_secret_values() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "API_KEY=secret123", None, "passphrase")
+            .expect("add project");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        let created = log.iter().find(|e| e.variable_key == "API_KEY");
+        assert!(created.is_some());
+        let event = created.unwrap();
+        assert_eq!(event.old_value, None);
+        assert_eq!(event.new_value, None);
+    }
+
+    #[test]
+    fn activity_log_respects_env_limit() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        std::env::set_var("ENVLT_HISTORY_LIMIT", "3");
+        // Ensure cleanup after test
+        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "A=1", None, "passphrase")
+            .expect("add project");
+
+        service
+            .set_variable("test-project", "B", "2", None, "passphrase")
+            .expect("set");
+        service
+            .set_variable("test-project", "C", "3", None, "passphrase")
+            .expect("set");
+        service
+            .set_variable("test-project", "D", "4", None, "passphrase")
+            .expect("set");
+
+        let log = service
+            .project_activity_log("test-project", "passphrase")
+            .expect("activity log");
+
+        assert_eq!(log.len(), 3);
+        // The first event (A=1 creation) should have been dropped.
+        assert!(!log.iter().any(|e| e.variable_key == "A"));
+    }
+
+    #[test]
+    fn vault_v1_migration_loads_with_empty_activity_log() {
+        use crate::vault::crypto;
+
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+
+        // Craft a v1 vault manually (no activity_log field).
+        let v1_toml = r#"
+version = 1
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+
+[projects.test-project]
+name = "test-project"
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+
+[projects.test-project.variables.PORT]
+value = "3000"
+var_type = "Config"
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+"#;
+
+        let ciphertext = crypto::encrypt(v1_toml.as_bytes(), "passphrase").expect("encrypt");
+        fs::create_dir_all(home.path()).expect("mkdir");
+        fs::write(store.vault_path(), ciphertext).expect("write vault");
+
+        let service = AppService::new(store);
+        let project = service
+            .project_snapshot("test-project", "passphrase")
+            .expect("load migrated vault");
+
+        assert!(project.activity_log.is_empty());
+
+        // Trigger a save to verify version is persisted as 2.
+        service
+            .set_variable("test-project", "PORT", "4000", None, "passphrase")
+            .expect("set");
+
+        let vault_text = {
+            let ciphertext = fs::read(service.store().vault_path()).expect("read vault");
+            let plaintext = crypto::decrypt(&ciphertext, "passphrase").expect("decrypt");
+            String::from_utf8(plaintext).expect("utf8")
+        };
+
+        assert!(vault_text.contains("version = 2"));
+    }
+
+    /// RAII guard to unset an environment variable when dropped.
+    struct CleanupEnvVar(&'static str);
+
+    impl Drop for CleanupEnvVar {
+        fn drop(&mut self) {
+            std::env::remove_var(self.0);
+        }
     }
 }

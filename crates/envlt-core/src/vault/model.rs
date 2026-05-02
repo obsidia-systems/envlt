@@ -4,7 +4,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Current vault format version.
-pub const VAULT_VERSION: u32 = 1;
+pub const VAULT_VERSION: u32 = 2;
+
+/// Default limit for the per-project activity log.
+const DEFAULT_HISTORY_LIMIT: usize = 20;
 const SECRET_HINTS: [&str; 9] = [
     "KEY",
     "SECRET",
@@ -67,6 +70,9 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
     /// Sorted map of variable keys to their values and metadata.
     pub variables: BTreeMap<String, Variable>,
+    /// Project-level audit trail.
+    #[serde(default)]
+    pub activity_log: Vec<ActivityEvent>,
 }
 
 impl Project {
@@ -79,12 +85,27 @@ impl Project {
             created_at: now,
             updated_at: now,
             variables: BTreeMap::new(),
+            activity_log: Vec::new(),
         }
     }
 
     /// Update the `updated_at` timestamp to now.
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
+    }
+
+    /// Append an event to the activity log, respecting `ENVLT_HISTORY_LIMIT`.
+    pub fn push_activity_event(&mut self, event: ActivityEvent) {
+        let limit = std::env::var("ENVLT_HISTORY_LIMIT")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_HISTORY_LIMIT);
+
+        if self.activity_log.len() >= limit {
+            let overflow = self.activity_log.len().saturating_sub(limit - 1);
+            self.activity_log.drain(..overflow);
+        }
+        self.activity_log.push(event);
     }
 }
 
@@ -148,6 +169,68 @@ pub enum VarType {
     Config,
     /// Explicitly marked as non-sensitive.
     Plain,
+}
+
+/// The kind of activity that occurred.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActivityAction {
+    /// A variable was created.
+    VariableCreated,
+    /// A variable value was updated.
+    VariableUpdated,
+    /// A variable was deleted.
+    VariableDeleted,
+    /// A variable type was changed.
+    VariableTypeChanged,
+}
+
+/// An event in a project's activity log.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActivityEvent {
+    /// When the event occurred.
+    pub timestamp: DateTime<Utc>,
+    /// What happened.
+    pub action: ActivityAction,
+    /// The variable key involved.
+    pub variable_key: String,
+    /// Previous value, if applicable and non-secret.
+    pub old_value: Option<String>,
+    /// New value, if applicable and non-secret.
+    pub new_value: Option<String>,
+    /// Previous type, if applicable.
+    pub old_type: Option<VarType>,
+    /// New type, if applicable.
+    pub new_type: Option<VarType>,
+}
+
+impl ActivityEvent {
+    /// Create a new activity event with the current timestamp.
+    pub fn new(
+        action: ActivityAction,
+        variable_key: impl Into<String>,
+        old_value: Option<String>,
+        new_value: Option<String>,
+        old_type: Option<VarType>,
+        new_type: Option<VarType>,
+    ) -> Self {
+        Self {
+            timestamp: Utc::now(),
+            action,
+            variable_key: variable_key.into(),
+            old_value,
+            new_value,
+            old_type,
+            new_type,
+        }
+    }
+
+    /// Helper to mask a value based on the variable type.
+    pub fn masked_value(value: &str, var_type: VarType) -> Option<String> {
+        match var_type {
+            VarType::Secret => None,
+            VarType::Config | VarType::Plain => Some(value.to_owned()),
+        }
+    }
 }
 
 /// Infer the variable type from common naming conventions.
