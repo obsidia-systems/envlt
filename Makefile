@@ -1,4 +1,4 @@
-.PHONY: help build test fmt clippy check release release-check clean
+.PHONY: help build test fmt clippy audit deny check release release-check clean
 
 # Default target
 help:
@@ -9,6 +9,8 @@ help:
 	@echo "  make test         - Run all tests"
 	@echo "  make fmt          - Check formatting"
 	@echo "  make clippy       - Run clippy lints"
+	@echo "  make audit        - Check dependencies for security advisories (cargo-audit)"
+	@echo "  make deny         - Check licenses, bans, and sources (cargo-deny)"
 	@echo "  make check        - Run fmt + clippy + test (quality gates)"
 	@echo "  make release-check- Check everything before tagging (recommended)"
 	@echo "  make release      - Full release workflow: bump, commit, tag"
@@ -27,8 +29,14 @@ fmt:
 clippy:
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 
+audit:
+	cargo audit --file Cargo.lock
+
+deny:
+	cargo deny check
+
 # Quality gates (runs on CI)
-check: fmt clippy test
+check: fmt clippy test audit deny
 
 # Pre-release checklist (run this before creating a tag!)
 release-check:
@@ -60,7 +68,12 @@ release-check:
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 	@echo "OK: Clippy passes"
 	@echo ""
-	@echo "=== Step 8: Check changelog ==="
+	@echo "=== Step 8: Check supply-chain (audit + deny) ==="
+	cargo audit --file Cargo.lock
+	cargo deny check
+	@echo "OK: Supply-chain checks pass"
+	@echo ""
+	@echo "=== Step 9: Check changelog ==="
 	@echo "Latest entry in CHANGELOG.md:"
 	@head -10 CHANGELOG.md | grep -E '^## \[' || true
 	@echo ""

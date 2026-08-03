@@ -35,6 +35,7 @@ The usual `.env` workflow creates avoidable friction:
 - onboarding depends on manual copy and edit steps
 - local state drifts across machines and teammates
 - accidental commits happen when `.env` changes are mixed into normal work
+- AI coding assistants (Claude Code, Cursor, Copilot, and similar tools) routinely read project files as part of normal operation and don't distinguish a `.env` file from any other file in the repo -- a plaintext secret sitting on disk is exposure surface, whether or not you ever ran `git add`
 
 `envlt` turns this into an encrypted, repeatable workflow with clear control points.
 
@@ -72,6 +73,7 @@ envlt run node server.js
 - Safer by default: encrypted vault, masked secret output, secure generator behavior
 - Portable: share project snapshots with `.evlt` bundles
 - Practical: use `run`, `use`, `diff`, `vars`, `gen`, `doctor`, and `auth` from a single CLI
+- Built for the AI-agent era: `envlt run` injects variables into a process without ever writing a `.env` file, and `envlt doctor` warns if one is left lying around next to a linked project
 
 ## Quick Comparison
 
@@ -227,7 +229,8 @@ flowchart LR
 
 - the source of truth is an encrypted local vault at `~/.envlt/vault.age`
 - vault passphrases can optionally be stored in the system keyring for the current `ENVLT_HOME`
-- `envlt run` avoids writing `.env` files to disk
+- `envlt run` avoids writing `.env` files to disk -- nothing for an AI coding assistant or any other tool scanning the working directory to read
+- `envlt doctor` warns when a `.env` file is found next to a resolved `.envlt-link`
 - bundles use a passphrase independent from the main vault passphrase
 - `vars` masks `Secret` values
 - `diff` reports categorized changes without printing values

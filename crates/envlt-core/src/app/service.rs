@@ -1047,6 +1047,21 @@ impl AppService {
                         detail,
                     });
                 }
+
+                let env_file_path = link_dir.join(".env");
+                if env_file_path.exists() {
+                    checks.push(DiagnosticCheck {
+                        code: "stray_env_file".to_owned(),
+                        severity: DiagnosticSeverity::Warn,
+                        detail: format!(
+                            "found {} next to .envlt-link -- anything that reads the working \
+                             directory, including AI coding assistants, can read it in \
+                             plaintext; prefer `envlt run` to inject variables without writing \
+                             this file, and delete it once you no longer need it",
+                            env_file_path.display()
+                        ),
+                    });
+                }
             }
             Ok(None) => checks.push(DiagnosticCheck {
                 code: "link".to_owned(),
@@ -1649,6 +1664,57 @@ mod tests {
                 && check.severity == DiagnosticSeverity::Ok
                 && check.detail.contains("doctor-project")
         }));
+    }
+
+    #[test]
+    fn doctor_warns_about_a_stray_env_file_next_to_the_link() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let env_path = project_dir.path().join(".env");
+        std::fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+        let service = AppService::new(VaultStore::new(home.path().to_path_buf()));
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_file(
+                "stray-env-project",
+                &env_path,
+                Some(project_dir.path().to_path_buf()),
+                "passphrase",
+            )
+            .expect("add project");
+        service
+            .write_project_link(project_dir.path(), "stray-env-project")
+            .expect("write project link");
+
+        let report = service.doctor(Some(project_dir.path()), Some("passphrase"));
+
+        assert!(!report.has_errors());
+        assert!(report.checks.iter().any(|check| {
+            check.code == "stray_env_file" && check.severity == DiagnosticSeverity::Warn
+        }));
+    }
+
+    #[test]
+    fn doctor_does_not_warn_when_no_env_file_is_present() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+
+        let service = AppService::new(VaultStore::new(home.path().to_path_buf()));
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("clean-project", "PORT=3000\n", None, "passphrase")
+            .expect("add project");
+        service
+            .write_project_link(project_dir.path(), "clean-project")
+            .expect("write project link");
+
+        let report = service.doctor(Some(project_dir.path()), Some("passphrase"));
+
+        assert!(!report
+            .checks
+            .iter()
+            .any(|check| check.code == "stray_env_file"));
     }
 
     #[test]

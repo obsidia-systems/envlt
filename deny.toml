@@ -1,0 +1,54 @@
+# cargo-deny configuration. Run `cargo deny check` locally, or see
+# .github/workflows/ci.yml for how this runs in CI.
+# Docs: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0190", reason = "unsoundness only affects Error::downcast_mut() after .context(); envlt never calls downcast_mut, and no fixed anyhow release exists yet" },
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained but reached only transitively through age's i18n-embed-fl macro dependency; not a direct or exploitable dependency" },
+]
+
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "LGPL-2.1-or-later",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = false
+
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+multiple-versions = "warn"
+# "deny" would also flag normal in-workspace path dependencies (e.g.
+# envlt-cli depending on envlt-core without a version pin), which aren't a
+# supply-chain risk.
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+
+# https://embarkstudios.github.io/cargo-deny/checks/sources/cfg.html
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

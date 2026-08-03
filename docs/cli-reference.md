@@ -269,8 +269,9 @@ Checks currently include:
 - `envlt` home path
 - vault presence
 - backup presence
-- `.envlt-link` state in the current directory
-- vault decryption and linked-project validation when `--decrypt` is used
+- `.envlt-link` state, resolved from the current directory or any parent
+- vault decryption, format version, and linked-project validation when `--decrypt` is used
+- a stray `.env` file sitting next to a resolved `.envlt-link` (warns, since anything that reads the working directory -- including AI coding assistants -- can read it in plaintext; prefer `envlt run`)
 
 Exit behavior:
 

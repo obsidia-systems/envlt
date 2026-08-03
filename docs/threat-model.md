@@ -41,6 +41,7 @@ The main assets are:
 - accidental terminal disclosure in commands that mask or summarize values, such as `vars` and `diff`
 - onboarding drift between `.env.example` and the user's local secret state
 - repeated manual copy/paste of secrets during local setup
+- unnecessary plaintext exposure to anything that reads the project working directory -- including AI coding assistants -- by making `envlt run` the default way to get variables into a process, and by having `doctor` flag a `.env` file left behind next to a linked project (see [AI Coding Assistants and Local Files](#ai-coding-assistants-and-local-files))
 
 ## Does Not Protect Against
 
@@ -50,7 +51,7 @@ The main assets are:
 - a compromised operating system account
 - a terminal, shell plugin, debugger, or agent that captures command output or environment variables
 - secrets intentionally printed by the user or by a child process
-- plaintext `.env` files after `envlt use` materializes them
+- plaintext `.env` files after `envlt use` materializes them -- once written, the file is readable by anything with filesystem access to the project directory. This now explicitly includes AI coding assistants (Claude Code, Cursor, Copilot, and similar tools): they routinely read project files as part of normal operation and are not malicious actors in the traditional sense, they simply don't distinguish a `.env` file from any other file in the repo
 - weak vault or bundle passphrases chosen by the user
 - shell history exposure when secrets are typed directly into commands
 - remote team access control, audit logs, approvals, or enterprise policy enforcement
@@ -77,6 +78,17 @@ The vault is encrypted on disk using `age` passphrase encryption. The vault pass
 ### Bundles
 
 `.evlt` bundles use a bundle passphrase independent from the vault passphrase. Sharing a bundle is safer than sharing raw `.env` files, but the bundle passphrase must be shared through a separate channel.
+
+### AI Coding Assistants and Local Files
+
+As of 2026, AI coding assistants (Claude Code, Cursor, GitHub Copilot, and similar tools) routinely read files across a project's working directory as part of normal operation -- indexing the codebase, answering questions, or acting autonomously. A `.env` file sitting on disk is not distinguished from any other file: if it is in the directory the assistant can see, its contents can end up in a prompt, a log, or a request to a third-party model provider. This is not a hypothetical: industry reporting in 2026 documented both a large jump in AI-assisted commits leaking secrets and a real vulnerability (in LangChain Core) where prompt injection triggered serialization that dumped environment variables.
+
+`envlt`'s existing design already reduces this exposure, and it predates this specific threat being named:
+
+- `envlt run` injects variables directly into a child process and never writes a `.env` file, so there is nothing on disk for an assistant (or anything else scanning the working directory) to read.
+- `envlt doctor` reports a `stray_env_file` warning when a `.env` file is found next to a resolved `.envlt-link`, pointing at `envlt run` as the alternative.
+
+This does not change the trust boundary described elsewhere in this document -- `envlt` still cannot protect a `.env` file once it exists on disk, from an AI assistant or anything else with the same access. The practical mitigation is to materialize a `.env` file only when a tool genuinely requires one, delete it promptly, and prefer `run` by default.
 
 ## User Responsibilities
 
@@ -106,12 +118,9 @@ The current project does not aim to provide:
 
 Known areas for improvement:
 
-- stronger `.env` parser and writer compatibility
-- atomic and restrictive plaintext `.env` materialization
-- broader output redaction tests
-- explicit memory zeroization strategy where practical
-- stronger malformed bundle validation and recovery guidance
-- clearer automation checks for `.env.example` drift
+- deserialized vault contents (`Variable.value` and similar) are not zeroized in memory once loaded, only the passphrase and transient encrypt/decrypt buffers are -- see `docs/tech-debt.md`
+- no `auth rotate` or `auth generate` yet
+- backup rotation keeps three generations (`vault.age.bak`, `.bak.1`, `.bak.2`); no configurable retention count yet
 
 ## Review Policy
 

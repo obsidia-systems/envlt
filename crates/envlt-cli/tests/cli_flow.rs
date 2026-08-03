@@ -171,7 +171,8 @@ fn doctor_reports_existing_link_and_decrypts_when_requested() {
         ))
         .stdout(predicate::str::contains(
             "ok\tlink_target\tlinked project 'doctor-project' exists in the vault",
-        ));
+        ))
+        .stdout(predicate::str::contains("warn\tstray_env_file\tfound"));
 }
 
 #[test]

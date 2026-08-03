@@ -9,6 +9,7 @@ Requirements:
 - Rust `1.85.0` or newer
 - `rustfmt`
 - `clippy`
+- `cargo-audit` and `cargo-deny` (only needed for `make audit` / `make deny`; install with `cargo install cargo-audit cargo-deny`)
 
 Install the local binary for iterative testing:
 
@@ -59,7 +60,13 @@ make fmt
 # Run clippy
 make clippy
 
-# Run all quality gates (fmt + clippy + test)
+# Check dependencies for security advisories
+make audit
+
+# Check licenses, bans, and sources
+make deny
+
+# Run all quality gates (fmt + clippy + test + audit + deny)
 make check
 ```
 

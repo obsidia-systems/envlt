@@ -41,6 +41,12 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 - `envlt run` injects variables into a child process without writing a `.env` file
 - `envlt use` writes a `.env` file and should therefore be treated as a temporary artifact
 
+### AI coding assistant exposure
+
+- AI coding assistants (Claude Code, Cursor, Copilot, and similar tools) read project files as part of normal operation and do not distinguish a `.env` file from any other file in the working directory -- see [Threat Model: AI Coding Assistants and Local Files](threat-model.md#ai-coding-assistants-and-local-files) for the full reasoning
+- `envlt doctor` reports a `stray_env_file` warning when a `.env` file is found next to a resolved `.envlt-link`, so a materialized file doesn't linger unnoticed
+- `envlt run` remains the recommended default specifically because it avoids this exposure entirely by never writing the file
+
 ### Safer defaults in output
 
 - `vars` masks `Secret` values
@@ -49,10 +55,10 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 
 ## Current limitations
 
-- no explicit zeroization strategy in memory
+- passphrase handling is zeroized end-to-end, but the deserialized vault contents are not (see [Passphrase handling in memory](#passphrase-handling-in-memory))
 - no cloud sync or remote conflict resolution
 - no advanced partial-redaction policy across every output path
-- no full migration and disaster-recovery subsystem yet
+- no `auth rotate` or `auth generate` yet
 
 ## Operational guidance
 
@@ -65,7 +71,6 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 
 ## Planned hardening areas
 
-- possible integration with `secrecy` and `zeroize`
-- deeper secure-store hardening and additional auth lifecycle commands
-- stricter bundle validation and better recovery paths
-- richer safe-output rules for diagnostics and diffing
+- additional auth lifecycle commands (`auth rotate`, `auth generate`)
+- rotating more than the current three kept backups if real-world use shows a need
+- an `import --dry-run`/`--inspect` style preview for other destructive operations

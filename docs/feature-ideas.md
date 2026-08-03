@@ -50,47 +50,42 @@ This document captures the current product state, known gaps, and a structured b
 
 The items below are grouped by **domain affinity** and **dependency**. Each entry notes whether it overlaps with existing technical debt (see [`tech-debt.md`](./tech-debt.md)) and what it depends on.
 
-### 1. Vault Durability & Concurrency Hardening
-- **Overlap with tech-debt**: High — covers file locking, fsync, permissions, and backup rotation.
+### 1. Vault Durability & Concurrency Hardening — Done
+- **Overlap with tech-debt**: Resolved — locking, fsync, permissions, and backup rotation all implemented.
 - **Dependencies**: None.
-- **Scope**:
-  - Add a lockfile under `ENVLT_HOME` to prevent concurrent writers (timeout + stale-lock detection).
-  - Set restrictive permissions on `ENVLT_HOME` (`0700`) and `vault.age` / `vault.age.bak` (`0600`) on Unix.
-  - fsync the temporary vault file before renaming, and fsync the directory after rename where supported.
-  - Consider rotating more than one backup.
-  - Make `doctor` report lock and backup health.
+- **Scope** (implemented):
+  - `VaultStore::lock` — a cross-process advisory lock (`fs4`) around read-modify-write sequences, with a configurable timeout (`ENVLT_LOCK_TIMEOUT_MS`).
+  - `ENVLT_HOME` restricted to `0700`, `vault.age`/backups to `0600` on Unix.
+  - The temp vault file and its directory are fsynced before/after the atomic rename.
+  - `save()` rotates three backup generations (`vault.age.bak`, `.bak.1`, `.bak.2`) instead of one.
+  - `doctor` reports vault/backup presence and format version.
 - **Why**: This deepens trust in the current storage model without replacing it.
 
-### 2. Auth & Keyring Hardening
-- **Overlap with tech-debt**: High — covers macOS `security` CLI exposure, memory zeroization, doc drift, and silent failures.
+### 2. Auth & Keyring Hardening — Done
+- **Overlap with tech-debt**: Resolved — macOS shell-out, zeroization, doc drift, and silent keyring failures all addressed.
 - **Dependencies**: None.
-- **Scope**:
-  - Pass the passphrase through stdin (not `-w`) when calling macOS `security`, or use a safer native API.
-  - Evaluate `secrecy` / `zeroize` for passphrase memory handling.
-  - Update `docs/architecture.md` and `docs/security.md` to reflect implemented keyring support.
-  - Document the exact precedence order: `ENVLT_PASSPHRASE` → keyring → prompt.
-  - Add tests around keyring target scoping by `ENVLT_HOME`.
-  - Make keyring failures more visible (optional explicit mode before falling back to prompt).
+- **Scope** (implemented):
+  - macOS no longer shells out to `security`; all three platforms go through the same in-process `keyring::Entry` API (Keychain Services, Credential Manager, Secret Service), fixing a latent bug where Linux/Windows silently used keyring's in-memory mock store.
+  - Passphrases are held in `Zeroizing` from the CLI prompt/env-var entry point through the keyring round-trip and the transient encrypt/decrypt plaintext buffers in `envlt-core`.
+  - `docs/architecture.md` and `docs/security.md` reflect the implemented keyring flow and precedence order (`ENVLT_PASSPHRASE` → keyring → prompt).
+  - `read_passphrase` fails with the real keyring error instead of silently prompting when stdin isn't a terminal (scripts/CI); interactive sessions keep the warn-and-prompt fallback.
 - **Why**: Authentication is a trust boundary; it should be boring and avoid accidental secret exposure.
 
-### 3. Link Resolution Improvements
-- **Overlap with tech-debt**: Medium — covers parent-directory walking.
+### 3. Link Resolution Improvements — Done
+- **Overlap with tech-debt**: Resolved — parent-directory walking implemented.
 - **Dependencies**: None.
-- **Scope**:
-  - Search upward from the current directory until a `.envlt-link` is found.
-  - Have `doctor` show the resolved link path.
-  - Validate link schema/version.
-  - Add a command or output path for link status.
+- **Scope** (implemented):
+  - `link::find_project_link` walks upward from the current directory until a `.envlt-link` is found, the same way `.git` is resolved.
+  - `doctor` shows the resolved link's directory, and warns if a `.env` file is left next to it (see [Threat Model: AI Coding Assistants and Local Files](../docs/threat-model.md#ai-coding-assistants-and-local-files)).
+  - `remove_project` removes the link from wherever it was actually found, not just the current directory.
+- **Not done**: explicit link schema/version validation, and a dedicated link-status command (currently folded into `doctor`).
 - **Why**: Makes `envlt vars`, `envlt run`, `envlt use`, and future UI work naturally inside real repositories.
 
-### 4. Safe-Output Regression Tests
-- **Overlap with tech-debt**: High — covers the missing safe-output test matrix.
+### 4. Safe-Output Regression Tests — Done
+- **Overlap with tech-debt**: Resolved — the safe-output test matrix now exists.
 - **Dependencies**: None.
-- **Scope**:
-  - Seed a known secret value in test vaults.
-  - Assert that the known secret never appears in stdout/stderr unless explicitly revealed.
-  - Cover `vars`, `diff`, `doctor`, `gen --set`, `import`, `export`, and error paths.
-  - Cover `table`, `json`, and `raw` output where applicable.
+- **Scope** (implemented):
+  - `safe_output_never_leaks_a_known_secret_across_commands_and_formats` plants one known secret value and asserts it never appears in stdout/stderr for `vars`, `diff` (both modes), `doctor --decrypt`, `history` (project and variable level), `gen --set`, `export`, `import`, and representative error paths, across `table`, `raw`, and `json` output.
 - **Why**: Safe output is a core promise of a secret-management tool.
 
 ### 5. Migration Infrastructure — Done
@@ -178,15 +173,16 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - Handle Unix signal exits more faithfully where supported.
 - **Why**: `run` is the safest daily workflow because it avoids writing plaintext `.env` files.
 
-### 11. Supply-Chain Trust Basics
+### 11. Supply-Chain Trust Basics — Mostly Done
 - **Overlap with tech-debt**: None — new feature.
 - **Dependencies**: None.
-- **Scope**:
-  - Add `cargo audit` and `cargo deny` to CI.
-  - Publish checksums for releases.
-  - Consider GitHub artifact attestations or `cosign`.
-  - Publish an SBOM.
-  - Add release smoke tests for the built binary.
+- **Scope** (implemented):
+  - Added a `supply-chain` CI job running `cargo-audit` (via `rustsec/audit-check`) and `cargo-deny` (via `EmbarkStudios/cargo-deny-action`) on every PR and push to `main`.
+  - Added `deny.toml`: license allowlist (MIT/Apache-2.0/BSD/MPL-2.0/Unicode-3.0/Zlib/Unlicense/LGPL-2.1-or-later), and an explicit, justified `ignore` list for the two known advisories (`RUSTSEC-2026-0190` anyhow unsoundness -- envlt never calls `downcast_mut`; `RUSTSEC-2024-0370` proc-macro-error unmaintained -- only reached transitively through `age`).
+  - Release checksums already existed (`shasum -a 256` per artifact); now paired with `actions/attest-build-provenance` per artifact for cryptographic build provenance.
+  - Added a release smoke test (`envlt --version` / `--help`) after each cross-platform build, before packaging.
+  - Added `make audit` / `make deny` targets, folded into `make check` and `make release-check`.
+- **Not done**: SBOM publishing. Revisit if a consumer actually asks for one; `cargo-deny`'s license/advisory data already covers most of what an SBOM would be used for at this project's size.
 - **Why**: Developers need extra confidence before installing a tool that manages secrets.
 
 ---
@@ -221,17 +217,12 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 
 ### Suggested Implementation Order
 
-1. **Vault Durability & Concurrency** — makes everything below safer.
-2. **Auth & Keyring Hardening** — fixes the trust boundary.
-3. **Link Resolution** — improves daily UX and enables the TUI.
-4. **Safe-Output Regression Tests** — establishes a regression net before new output surfaces appear.
-5. **Migration Infrastructure** — unlocks format evolution.
-6. **Bundle Sharing Enhancements** — improves collaboration safety.
-7. **Terminal UI** — builds on link resolution and safe-output guarantees.
-8. **Project Environments** — uses migration, link, and TUI foundations.
+Items 1–6 and 11 are done (see each item above for what was implemented). What's left, in order:
+
+7. **Terminal UI** — builds on link resolution and safe-output guarantees, both now in place.
+8. **Project Environments** — uses the migration infrastructure, which now exists.
 9. **Configuration File** — adds persistent preferences.
 10. **Improve `envlt run`** — polishes the safest daily workflow.
-11. **Supply-Chain Trust** — hardens release confidence.
 
 ---
 
