@@ -962,8 +962,8 @@ impl AppService {
         let mut loaded_project_names = None;
         if vault_exists {
             match passphrase {
-                Some(passphrase) => match self.store.load(passphrase) {
-                    Ok(vault) => {
+                Some(passphrase) => match self.store.load_with_migration_info(passphrase) {
+                    Ok((vault, migrated_from)) => {
                         let project_names = vault.projects.keys().cloned().collect::<Vec<_>>();
                         checks.push(DiagnosticCheck {
                             code: "decrypt".to_owned(),
@@ -973,6 +973,21 @@ impl AppService {
                                 project_names.len()
                             ),
                         });
+
+                        checks.push(DiagnosticCheck {
+                            code: "vault_format".to_owned(),
+                            severity: DiagnosticSeverity::Ok,
+                            detail: match migrated_from {
+                                Some(old_version) => format!(
+                                    "vault migrated from format version {old_version} to {} \
+                                     (pre-migration backup kept as vault.v{old_version}.pre-migration.age); \
+                                     this will be persisted on the next save",
+                                    vault.version
+                                ),
+                                None => format!("vault is at the current format version ({})", vault.version),
+                            },
+                        });
+
                         loaded_project_names = Some(project_names);
                     }
                     Err(error) => checks.push(DiagnosticCheck {

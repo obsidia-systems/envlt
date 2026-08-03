@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 ### Added
 
 - Safe-output regression test (`safe_output_never_leaks_a_known_secret_across_commands_and_formats` in `crates/envlt-cli/tests/cli_flow.rs`) that plants one known secret value and asserts it never appears in stdout/stderr for `vars`, `diff` (both modes), `doctor --decrypt`, `history` (project and variable level), `gen --set`, `export`, `import`, or representative error paths, across `table`, `raw`, and `json` output
+- New `vault/migration.rs` module: vault format migrations are now versioned steps operating on the raw TOML table (not just `serde(default)` on the current struct), so a future format change can rename or restructure fields, not only add them. `VaultStore::load` rejects any version outside `MIN_SUPPORTED_VAULT_VERSION..=VAULT_VERSION`, writes a pre-migration backup (`vault.v{old}.pre-migration.age`) before migrating, and `doctor` reports a new `vault_format` check showing the current version or that a migration was just applied
 
 ### Fixed
 

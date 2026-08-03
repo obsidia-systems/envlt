@@ -11,7 +11,8 @@ use tempfile::NamedTempFile;
 use crate::{
     error::{EnvltError, Result},
     vault::{
-        crypto,
+        crypto, migration,
+        migration::MIN_SUPPORTED_VAULT_VERSION,
         model::{VaultData, VAULT_VERSION},
     },
 };
@@ -137,13 +138,24 @@ impl VaultStore {
         self.save(&vault, passphrase)
     }
 
-    /// Load and decrypt the vault, verifying its version.
-    ///
-    /// Automatically migrates vaults from version 1 to version 2 by
-    /// accepting v1 on load (thanks to `serde(default)` on `activity_log`)
-    /// and setting the in-memory version to 2 so the next `save()` persists
-    /// the vault in the new format.
+    /// Load and decrypt the vault, migrating an older on-disk format to the
+    /// current version if needed. See [`Self::load_with_migration_info`] if
+    /// the caller needs to know whether a migration actually happened.
     pub fn load(&self, passphrase: &str) -> Result<VaultData> {
+        self.load_with_migration_info(passphrase)
+            .map(|(vault, _migrated_from)| vault)
+    }
+
+    /// Load and decrypt the vault like [`Self::load`], additionally
+    /// returning the on-disk version it was migrated from, or `None` if it
+    /// was already at [`VAULT_VERSION`].
+    ///
+    /// A vault older than [`MIN_SUPPORTED_VAULT_VERSION`] or newer than
+    /// [`VAULT_VERSION`] is rejected with [`EnvltError::UnsupportedVaultVersion`].
+    /// When a migration is applied, the pre-migration ciphertext is written
+    /// to `vault.v{old}.pre-migration.age` before the in-memory data is
+    /// upgraded, so the original file is always recoverable.
+    pub fn load_with_migration_info(&self, passphrase: &str) -> Result<(VaultData, Option<u32>)> {
         if !self.exists() {
             return Err(EnvltError::VaultNotFound {
                 path: self.vault_path.clone(),
@@ -156,20 +168,44 @@ impl VaultStore {
             path: self.vault_path.clone(),
             message: format!("vault content is not valid UTF-8: {err}"),
         })?;
-        let mut vault: VaultData = toml::from_str(&plaintext)?;
 
-        if vault.version == 1 {
-            vault.version = VAULT_VERSION;
-        }
+        let mut table: toml::value::Table = toml::from_str(&plaintext)?;
+        let stored_version = table
+            .get("version")
+            .and_then(toml::Value::as_integer)
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(0);
 
-        if vault.version != VAULT_VERSION {
+        if !(MIN_SUPPORTED_VAULT_VERSION..=VAULT_VERSION).contains(&stored_version) {
             return Err(EnvltError::UnsupportedVaultVersion {
                 expected: VAULT_VERSION,
-                actual: vault.version,
+                actual: stored_version,
             });
         }
 
-        Ok(vault)
+        let migrated_from = if stored_version < VAULT_VERSION {
+            self.write_pre_migration_backup(&ciphertext, stored_version)?;
+            migration::migrate(&mut table, stored_version)?;
+            Some(stored_version)
+        } else {
+            None
+        };
+
+        let migrated_toml = toml::to_string(&table)?;
+        let vault: VaultData = toml::from_str(&migrated_toml)?;
+        Ok((vault, migrated_from))
+    }
+
+    /// Preserve the exact pre-migration ciphertext under a version-stamped
+    /// name, distinct from the regular `vault.age.bak` rotation, so a
+    /// migration can always be undone by restoring this file.
+    fn write_pre_migration_backup(&self, ciphertext: &[u8], from_version: u32) -> Result<()> {
+        let backup_path = self
+            .root_dir
+            .join(format!("vault.v{from_version}.pre-migration.age"));
+        fs::write(&backup_path, ciphertext)?;
+        set_restrictive_permissions(&backup_path)?;
+        Ok(())
     }
 
     /// Encrypt and atomically save the vault, creating a backup first.
@@ -287,6 +323,93 @@ mod tests {
             .expect("backup metadata")
             .permissions();
         assert_eq!(backup_mode.mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn load_migrates_v1_and_keeps_a_pre_migration_backup() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        fs::create_dir_all(store.root_dir()).expect("mkdir");
+
+        let v1_toml = r#"
+version = 1
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+
+[projects.demo]
+name = "demo"
+created_at = "2024-01-01T00:00:00Z"
+updated_at = "2024-01-01T00:00:00Z"
+
+[projects.demo.variables]
+"#;
+        let original_ciphertext = crypto::encrypt(v1_toml.as_bytes(), "passphrase").expect("encrypt");
+        fs::write(store.vault_path(), &original_ciphertext).expect("write v1 vault");
+
+        let (vault, migrated_from) = store
+            .load_with_migration_info("passphrase")
+            .expect("load and migrate");
+
+        assert_eq!(migrated_from, Some(1));
+        assert_eq!(vault.version, VAULT_VERSION);
+        assert!(vault.projects["demo"].activity_log.is_empty());
+
+        let backup_path = store.root_dir().join("vault.v1.pre-migration.age");
+        let backed_up = fs::read(&backup_path).expect("pre-migration backup exists");
+        assert_eq!(backed_up, original_ciphertext);
+    }
+
+    #[test]
+    fn load_with_migration_info_reports_none_for_a_current_vault() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().join(".envlt"));
+        store.initialize("passphrase").expect("initialize");
+
+        let (_vault, migrated_from) = store
+            .load_with_migration_info("passphrase")
+            .expect("load");
+
+        assert_eq!(migrated_from, None);
+    }
+
+    #[test]
+    fn load_rejects_a_version_newer_than_current() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        fs::create_dir_all(store.root_dir()).expect("mkdir");
+
+        let future_toml = format!("version = {}\n", VAULT_VERSION + 1);
+        let ciphertext = crypto::encrypt(future_toml.as_bytes(), "passphrase").expect("encrypt");
+        fs::write(store.vault_path(), ciphertext).expect("write future vault");
+
+        let error = store.load("passphrase").expect_err("future version rejected");
+        assert!(matches!(
+            error,
+            EnvltError::UnsupportedVaultVersion {
+                expected: VAULT_VERSION,
+                actual,
+            } if actual == VAULT_VERSION + 1
+        ));
+    }
+
+    #[test]
+    fn load_rejects_a_version_older_than_min_supported() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        fs::create_dir_all(store.root_dir()).expect("mkdir");
+
+        let too_old_toml = "version = 0\n";
+        let ciphertext = crypto::encrypt(too_old_toml.as_bytes(), "passphrase").expect("encrypt");
+        fs::write(store.vault_path(), ciphertext).expect("write too-old vault");
+
+        let error = store.load("passphrase").expect_err("too-old version rejected");
+        assert!(matches!(
+            error,
+            EnvltError::UnsupportedVaultVersion {
+                expected: VAULT_VERSION,
+                actual: 0,
+            }
+        ));
     }
 
     #[test]

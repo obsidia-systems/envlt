@@ -94,7 +94,7 @@ Each `Project` maintains an `activity_log` (`Vec<ActivityEvent>`) that records v
 ## Implemented persistence guarantees
 
 - encrypted vault file, restricted to `0700`/`0600` on Unix
-- basic version validation
+- versioned vault format with a dedicated migration module (`vault/migration.rs`); a vault older than the current version is migrated on load, with the pre-migration ciphertext preserved as `vault.v{old}.pre-migration.age`, and a vault outside the supported version range is rejected
 - atomic write path through a temporary file, fsynced before rename
 - automatic backup copy before overwrite
 - cross-process advisory lock (`VaultStore::lock`) around read-modify-write sequences
@@ -127,5 +127,4 @@ Responsibilities:
 
 - cloud provider abstraction
 - merge engine for external vaults
-- migration subsystem beyond current version validation
 - GUI crate

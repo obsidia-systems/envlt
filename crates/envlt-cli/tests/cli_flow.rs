@@ -167,6 +167,9 @@ fn doctor_reports_existing_link_and_decrypts_when_requested() {
             "ok\tdecrypt\tvault decrypted successfully",
         ))
         .stdout(predicate::str::contains(
+            "ok\tvault_format\tvault is at the current format version",
+        ))
+        .stdout(predicate::str::contains(
             "ok\tlink_target\tlinked project 'doctor-project' exists in the vault",
         ));
 }

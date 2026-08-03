@@ -93,15 +93,15 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - Cover `table`, `json`, and `raw` output where applicable.
 - **Why**: Safe output is a core promise of a secret-management tool.
 
-### 5. Migration Infrastructure
-- **Overlap with tech-debt**: Medium — covers the missing migration subsystem.
+### 5. Migration Infrastructure — Done
+- **Overlap with tech-debt**: Resolved — `vault/migration.rs` now exists.
 - **Dependencies**: None (enables later features).
-- **Scope**:
-  - Introduce a `vault/migration.rs` module.
-  - Support versioned migrations from old `VaultData` shapes.
-  - Create a backup before any migration.
-  - Make `doctor` report migration readiness.
-  - Keep fixture vaults for old versions in tests.
+- **Scope** (implemented):
+  - Introduced a `vault/migration.rs` module with one versioned step per format change (`migrate_v1_to_v2`, ...), operating on the raw TOML table so future migrations can restructure fields, not just default them.
+  - `VaultStore::load` rejects anything outside `MIN_SUPPORTED_VAULT_VERSION..=VAULT_VERSION`.
+  - A pre-migration backup (`vault.v{old}.pre-migration.age`) is written before migrating.
+  - `doctor` reports a `vault_format` check showing the current version or that a migration was just applied.
+  - Fixture vaults for old versions live in `vault::store::tests` and `app::service::tests::vault_v1_migration_loads_with_empty_activity_log`.
 - **Why**: Required before introducing `Environment` or any vault format change.
 
 ### 6. Bundle Sharing Enhancements
