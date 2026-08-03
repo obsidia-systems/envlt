@@ -223,6 +223,7 @@ impl AppService {
         passphrase: &str,
     ) -> Result<()> {
         let _lock = self.store.lock()?;
+        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -237,14 +238,17 @@ impl AppService {
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
                 let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                project.push_activity_event(ActivityEvent::new(
-                    ActivityAction::VariableCreated,
-                    &key,
-                    None,
-                    new_value,
-                    None,
-                    None,
-                ));
+                project.push_activity_event(
+                    ActivityEvent::new(
+                        ActivityAction::VariableCreated,
+                        &key,
+                        None,
+                        new_value,
+                        None,
+                        None,
+                    ),
+                    history_limit,
+                );
                 (key, variable)
             })
             .collect();
@@ -282,6 +286,7 @@ impl AppService {
             .collect::<Result<BTreeMap<_, _>>>()?;
 
         let _lock = self.store.lock()?;
+        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -296,14 +301,17 @@ impl AppService {
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
                 let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                project.push_activity_event(ActivityEvent::new(
-                    ActivityAction::VariableCreated,
-                    &key,
-                    None,
-                    new_value,
-                    None,
-                    None,
-                ));
+                project.push_activity_event(
+                    ActivityEvent::new(
+                        ActivityAction::VariableCreated,
+                        &key,
+                        None,
+                        new_value,
+                        None,
+                        None,
+                    ),
+                    history_limit,
+                );
                 (key, variable)
             })
             .collect();
@@ -451,6 +459,7 @@ impl AppService {
     ) -> Result<String> {
         let mut project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
         let _lock = self.store.lock()?;
+        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(vault_passphrase)?;
 
         let project_name = project.name.clone();
@@ -511,7 +520,7 @@ impl AppService {
                 .collect();
 
             for event in import_events {
-                project.push_activity_event(event);
+                project.push_activity_event(event, history_limit);
             }
         } else {
             let import_events: Vec<ActivityEvent> = project
@@ -531,7 +540,7 @@ impl AppService {
                 .collect();
 
             for event in import_events {
-                project.push_activity_event(event);
+                project.push_activity_event(event, history_limit);
             }
         }
 
@@ -551,6 +560,7 @@ impl AppService {
         passphrase: &str,
     ) -> Result<()> {
         let _lock = self.store.lock()?;
+        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -576,26 +586,32 @@ impl AppService {
                 let new_type = variable.var_type;
 
                 if type_changed {
-                    project.push_activity_event(ActivityEvent::new(
-                        ActivityAction::VariableTypeChanged,
-                        key,
-                        None,
-                        None,
-                        Some(old_type),
-                        Some(new_type),
-                    ));
+                    project.push_activity_event(
+                        ActivityEvent::new(
+                            ActivityAction::VariableTypeChanged,
+                            key,
+                            None,
+                            None,
+                            Some(old_type),
+                            Some(new_type),
+                        ),
+                        history_limit,
+                    );
                 }
 
                 if value_changed {
                     let new_value = ActivityEvent::masked_value(value, new_type);
-                    project.push_activity_event(ActivityEvent::new(
-                        ActivityAction::VariableUpdated,
-                        key,
-                        old_value,
-                        new_value,
-                        None,
-                        None,
-                    ));
+                    project.push_activity_event(
+                        ActivityEvent::new(
+                            ActivityAction::VariableUpdated,
+                            key,
+                            old_value,
+                            new_value,
+                            None,
+                            None,
+                        ),
+                        history_limit,
+                    );
                 }
             }
             None => {
@@ -606,14 +622,17 @@ impl AppService {
                 let new_type = variable.var_type;
                 let new_value = ActivityEvent::masked_value(value, new_type);
                 project.variables.insert(key.to_owned(), variable);
-                project.push_activity_event(ActivityEvent::new(
-                    ActivityAction::VariableCreated,
-                    key,
-                    None,
-                    new_value,
-                    None,
-                    None,
-                ));
+                project.push_activity_event(
+                    ActivityEvent::new(
+                        ActivityAction::VariableCreated,
+                        key,
+                        None,
+                        new_value,
+                        None,
+                        None,
+                    ),
+                    history_limit,
+                );
             }
         }
 
@@ -625,6 +644,7 @@ impl AppService {
     /// fn unset_variable(&self, project_name.
     pub fn unset_variable(&self, project_name: &str, key: &str, passphrase: &str) -> Result<()> {
         let _lock = self.store.lock()?;
+        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -644,14 +664,17 @@ impl AppService {
 
         if let Some(variable) = removed {
             let old_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-            project.push_activity_event(ActivityEvent::new(
-                ActivityAction::VariableDeleted,
-                key,
-                old_value,
-                None,
-                None,
-                None,
-            ));
+            project.push_activity_event(
+                ActivityEvent::new(
+                    ActivityAction::VariableDeleted,
+                    key,
+                    old_value,
+                    None,
+                    None,
+                    None,
+                ),
+                history_limit,
+            );
         }
 
         project.touch();
@@ -929,6 +952,30 @@ impl AppService {
             },
             detail: format!("envlt home: {}", root_dir.display()),
         });
+
+        match self.store.config() {
+            Ok(config) => {
+                let config_path = root_dir.join("config.toml");
+                let source = if config_path.exists() {
+                    "config.toml"
+                } else {
+                    "defaults"
+                };
+                checks.push(DiagnosticCheck {
+                    code: "config".to_owned(),
+                    severity: DiagnosticSeverity::Ok,
+                    detail: format!(
+                        "history_limit={}, lock_timeout_ms={} (from {source}, env vars override)",
+                        config.history_limit, config.lock_timeout_ms
+                    ),
+                });
+            }
+            Err(error) => checks.push(DiagnosticCheck {
+                code: "config".to_owned(),
+                severity: DiagnosticSeverity::Error,
+                detail: error.to_string(),
+            }),
+        }
 
         let vault_exists = vault_path.exists();
         checks.push(DiagnosticCheck {
@@ -1888,6 +1935,9 @@ mod tests {
 
     #[test]
     fn activity_log_respects_env_limit() {
+        let _env_lock = crate::test_support::ENV_VAR_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let home = TempDir::new().expect("tempdir");
         let store = VaultStore::new(home.path().to_path_buf());
         let service = AppService::new(store);

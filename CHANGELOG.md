@@ -14,6 +14,7 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 - `VaultStore::save` now rotates up to two additional numbered backups (`vault.age.bak.1`, `vault.age.bak.2`) instead of keeping only `vault.age.bak`, so one corrupted write can no longer destroy every prior good backup
 - `doctor` now warns when a `.env` file sits next to a resolved `.envlt-link`, since anything that reads the working directory -- including AI coding assistants -- can read it in plaintext; the warning points at `envlt run` as the alternative that never writes the file
 - Added a `supply-chain` CI job (`cargo-audit` + `cargo-deny`, via `deny.toml`), a release smoke test (`envlt --version`/`--help`) on every built binary before packaging, and build provenance attestation (`actions/attest-build-provenance`) per release artifact; `make audit` and `make deny` targets mirror this locally and are now part of `make check`
+- New `config.rs` module: `ENVLT_HOME/config.toml` now holds persistent `history_limit` and `lock_timeout_ms` preferences (both optional, both still overridable via `ENVLT_HISTORY_LIMIT`/`ENVLT_LOCK_TIMEOUT_MS`), instead of those settings only existing as env-var reads scattered in `vault/model.rs` and `vault/store.rs`. Invalid TOML or an unparseable env var override now produce a specific, actionable error instead of a silent fallback. `doctor` reports a new `config` check showing the resolved values and their source
 
 ### Fixed
 

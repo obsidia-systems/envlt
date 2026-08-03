@@ -12,6 +12,8 @@ pub mod app;
 pub mod auth;
 /// Encrypted project bundle format.
 pub mod bundle;
+/// Persistent user configuration (`config.toml`).
+pub mod config;
 /// Environment file parser and renderer.
 pub mod env;
 /// Error types used throughout the crate.
@@ -31,6 +33,7 @@ pub use auth::{
     auth_status, clear_stored_passphrase, load_stored_passphrase, save_stored_passphrase,
     AuthStatus,
 };
+pub use config::Config;
 pub use env::{parse_env_file, parse_env_str, render_env};
 pub use error::{EnvltError, Result};
 pub use gen::{generate_custom_value, generate_value, supported_gen_types, Charset, GenType};
@@ -38,3 +41,17 @@ pub use vault::{
     infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultData,
     VaultStore,
 };
+
+/// Test-only helpers shared across the crate's test modules.
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::Mutex;
+
+    /// `Config::load` reads `ENVLT_HISTORY_LIMIT`/`ENVLT_LOCK_TIMEOUT_MS`
+    /// from the process environment, which is global state shared by every
+    /// test in this binary. Any test that sets or relies on the absence of
+    /// these variables must hold this lock for its duration, or it can
+    /// observe another such test's env var mid-mutation (tests run
+    /// concurrently by default).
+    pub(crate) static ENV_VAR_LOCK: Mutex<()> = Mutex::new(());
+}

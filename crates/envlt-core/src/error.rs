@@ -29,6 +29,22 @@ pub enum EnvltError {
         /// Path to the lock file.
         path: PathBuf,
     },
+    /// Failed to parse `config.toml`.
+    #[error("failed to parse config at {path}: {message}")]
+    ConfigParse {
+        /// File path.
+        path: PathBuf,
+        /// Parse error message.
+        message: String,
+    },
+    /// An environment variable override for a config value could not be parsed.
+    #[error("invalid value for {key}: '{value}'")]
+    InvalidConfigValue {
+        /// Environment variable name.
+        key: String,
+        /// Raw value that failed to parse.
+        value: String,
+    },
     /// Vault version does not match the supported version.
     #[error("unsupported vault version: expected {expected}, got {actual}")]
     UnsupportedVaultVersion {

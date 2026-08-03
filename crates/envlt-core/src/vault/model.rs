@@ -6,8 +6,6 @@ use serde::{Deserialize, Serialize};
 /// Current vault format version.
 pub const VAULT_VERSION: u32 = 2;
 
-/// Default limit for the per-project activity log.
-const DEFAULT_HISTORY_LIMIT: usize = 20;
 const SECRET_HINTS: [&str; 9] = [
     "KEY",
     "SECRET",
@@ -94,13 +92,9 @@ impl Project {
         self.updated_at = Utc::now();
     }
 
-    /// Append an event to the activity log, respecting `ENVLT_HISTORY_LIMIT`.
-    pub fn push_activity_event(&mut self, event: ActivityEvent) {
-        let limit = std::env::var("ENVLT_HISTORY_LIMIT")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_HISTORY_LIMIT);
-
+    /// Append an event to the activity log, trimming it down to `limit`
+    /// entries (see [`crate::config::Config::history_limit`]).
+    pub fn push_activity_event(&mut self, event: ActivityEvent, limit: usize) {
         if self.activity_log.len() >= limit {
             let overflow = self
                 .activity_log
@@ -253,36 +247,31 @@ pub fn infer_var_type(name: &str) -> VarType {
 mod tests {
     use super::{infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable};
 
-    struct CleanupEnvVar(&'static str);
-
-    impl Drop for CleanupEnvVar {
-        fn drop(&mut self) {
-            std::env::remove_var(self.0);
-        }
-    }
-
     #[test]
     fn push_activity_event_does_not_panic_when_limit_is_zero() {
-        std::env::set_var("ENVLT_HISTORY_LIMIT", "0");
-        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
-
         let mut project = Project::new("test-project", None);
-        project.push_activity_event(ActivityEvent::new(
-            ActivityAction::VariableCreated,
-            "A",
-            None,
-            Some("1".to_owned()),
-            None,
-            None,
-        ));
-        project.push_activity_event(ActivityEvent::new(
-            ActivityAction::VariableCreated,
-            "B",
-            None,
-            Some("2".to_owned()),
-            None,
-            None,
-        ));
+        project.push_activity_event(
+            ActivityEvent::new(
+                ActivityAction::VariableCreated,
+                "A",
+                None,
+                Some("1".to_owned()),
+                None,
+                None,
+            ),
+            0,
+        );
+        project.push_activity_event(
+            ActivityEvent::new(
+                ActivityAction::VariableCreated,
+                "B",
+                None,
+                Some("2".to_owned()),
+                None,
+                None,
+            ),
+            0,
+        );
 
         assert_eq!(project.activity_log.len(), 1);
         assert_eq!(project.activity_log[0].variable_key, "B");

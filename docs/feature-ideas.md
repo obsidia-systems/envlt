@@ -151,15 +151,17 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Deferred**: Shared/project-level inherited variables until there is strong demand.
 - **Why**: Most teams already think in environments (`dev`, `staging`, `prod`).
 
-### 9. Configuration File
+### 9. Configuration File — Done
 - **Overlap with tech-debt**: None — new feature.
 - **Dependencies**: None.
-- **Scope**:
-  - Add a `Config` struct that reads from `~/.envlt/config.toml` (or `ENVLT_HOME/config.toml`).
-  - Support `history_limit` with a sensible default (e.g. 20).
-  - Allow envvars to override config file values (envvar wins).
-  - Keep the config file optional; default behavior should work without one.
-  - Validate config on load and emit actionable errors for invalid values.
+- **Scope** (implemented):
+  - `config::Config` reads from `ENVLT_HOME/config.toml`, resolved via `VaultStore::config()`.
+  - Supports `history_limit` (default 20) and `lock_timeout_ms` (default 5000), the two settings that previously lived only as env-var reads scattered in `vault/model.rs` and `vault/store.rs`.
+  - `ENVLT_HISTORY_LIMIT` / `ENVLT_LOCK_TIMEOUT_MS` still override the config file value when set.
+  - The file is fully optional -- a missing or partially-filled `config.toml` falls back to defaults field by field.
+  - Invalid TOML or an unparseable env var override both produce a specific `EnvltError` (`ConfigParse` / `InvalidConfigValue`) instead of a silent fallback or a generic error.
+  - `doctor` reports a new `config` check showing the resolved values and whether they came from `config.toml` or defaults.
+- **Not done**: a dedicated `envlt config` command to view/edit the file (currently edited by hand); revisit if users ask for it.
 - **Why**: Persistent preferences without polluting the user's shell environment.
 
 ### 10. Improve `envlt run`
@@ -217,11 +219,10 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 
 ### Suggested Implementation Order
 
-Items 1–6 and 11 are done (see each item above for what was implemented). What's left, in order:
+Items 1–6, 9, and 11 are done (see each item above for what was implemented). What's left, in order:
 
 7. **Terminal UI** — builds on link resolution and safe-output guarantees, both now in place.
 8. **Project Environments** — uses the migration infrastructure, which now exists.
-9. **Configuration File** — adds persistent preferences.
 10. **Improve `envlt run`** — polishes the safest daily workflow.
 
 ---

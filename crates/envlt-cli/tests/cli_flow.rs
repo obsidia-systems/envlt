@@ -1612,6 +1612,59 @@ fn project_history_shows_all_events() {
 }
 
 #[test]
+fn config_toml_overrides_the_default_history_limit() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "COUNTER=0\n").expect("write env");
+    fs::write(home.path().join("config.toml"), "history_limit = 2\n").expect("write config");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "config-history-project"])
+        .assert()
+        .success();
+
+    for value in ["1", "2", "3"] {
+        cli(&home)
+            .args([
+                "set",
+                "--project",
+                "config-history-project",
+                &format!("COUNTER={value}"),
+            ])
+            .assert()
+            .success();
+    }
+
+    // Creation + 3 updates = 4 events; history_limit=2 from config.toml
+    // should keep only the most recent 2.
+    cli(&home)
+        .args([
+            "history",
+            "--project",
+            "config-history-project",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = serde_json::from_str(output).unwrap_or(Value::Null);
+            parsed.as_array().map(Vec::len) == Some(2)
+        }));
+
+    cli(&home)
+        .args(["doctor", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ok\tconfig\thistory_limit=2"))
+        .stdout(predicate::str::contains("from config.toml"));
+}
+
+#[test]
 fn vars_shows_last_modified_column() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");

@@ -180,7 +180,7 @@ Behavior:
 - secret values are masked automatically (`********`)
 - events include creation, updates, type changes, and deletion
 - the log survives variable deletion
-- the default per-project limit is 20 events (configurable via `ENVLT_HISTORY_LIMIT`)
+- the default per-project limit is 20 events, configurable via `history_limit` in `config.toml` or the `ENVLT_HISTORY_LIMIT` environment variable (env var wins if both are set)
 
 Output formats:
 

@@ -76,8 +76,22 @@ cargo run -p envlt-cli -- --help
 | `ENVLT_GEN_SAVE` | Answer whether interactive `gen` should store the result |
 | `ENVLT_GEN_SET_KEY` | Set the target key for interactive `gen` storage |
 | `ENVLT_GEN_PROJECT` | Set the target project for interactive `gen` storage |
+| `ENVLT_HISTORY_LIMIT` | Override `history_limit` from `config.toml` for this process |
+| `ENVLT_LOCK_TIMEOUT_MS` | Override `lock_timeout_ms` from `config.toml` for this process |
 
 When setting `ENVLT_HOME`, prefer an absolute path so keyring lookup stays consistent across shells and working directories.
+
+## Configuration file
+
+`ENVLT_HOME/config.toml` (for example `~/.envlt/config.toml`) holds persistent preferences, so you don't have to export environment variables in every shell. It is entirely optional -- with no file, or with fields left out of it, `envlt` falls back to built-in defaults.
+
+```toml
+# ~/.envlt/config.toml
+history_limit = 20     # default: 20
+lock_timeout_ms = 5000 # default: 5000
+```
+
+Precedence for both settings is: environment variable (if set) > `config.toml` value > built-in default. `envlt doctor` reports the resolved values and where they came from under the `config` check. There is currently no `envlt config` command; edit the file directly.
 
 ## First-run workflow
 

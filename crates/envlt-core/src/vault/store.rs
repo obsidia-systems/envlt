@@ -10,6 +10,7 @@ use tempfile::NamedTempFile;
 use zeroize::Zeroizing;
 
 use crate::{
+    config::Config,
     error::{EnvltError, Result},
     vault::{
         crypto, migration,
@@ -18,23 +19,12 @@ use crate::{
     },
 };
 
-/// Default time `VaultStore::lock` waits for another `envlt` process to
-/// finish before giving up. Overridable via `ENVLT_LOCK_TIMEOUT_MS`.
-const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 const LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Number of additional numbered backups kept beyond `vault.age.bak`, so a
 /// write that corrupts the most recent backup doesn't destroy every prior
 /// good copy.
 const BACKUP_GENERATIONS: u32 = 2;
-
-fn lock_timeout() -> Duration {
-    std::env::var("ENVLT_LOCK_TIMEOUT_MS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(Duration::from_millis)
-        .unwrap_or(DEFAULT_LOCK_TIMEOUT)
-}
 
 /// RAII guard holding an exclusive, cross-process lock on the vault.
 ///
@@ -102,13 +92,19 @@ impl VaultStore {
         self.vault_path.exists()
     }
 
+    /// Load this store's resolved configuration (`config.toml`, with
+    /// environment variable overrides). See [`Config::load`].
+    pub fn config(&self) -> Result<Config> {
+        Config::load(&self.root_dir)
+    }
+
     /// Acquire an exclusive, cross-process lock on the vault.
     ///
     /// Callers performing a read-modify-write sequence (load, mutate,
     /// save) should hold this lock for the whole sequence so that two
     /// concurrent `envlt` processes cannot race on `vault.age` and silently
-    /// discard each other's changes. Blocks up to [`LOCK_TIMEOUT`] while
-    /// another process holds the lock before returning
+    /// discard each other's changes. Blocks up to `config().lock_timeout_ms`
+    /// while another process holds the lock before returning
     /// [`EnvltError::VaultLocked`].
     pub fn lock(&self) -> Result<VaultLock> {
         create_dir_restricted(&self.root_dir)?;
@@ -119,7 +115,8 @@ impl VaultStore {
             .write(true)
             .open(&lock_path)?;
 
-        let deadline = Instant::now() + lock_timeout();
+        let lock_timeout = Duration::from_millis(self.config()?.lock_timeout_ms);
+        let deadline = Instant::now() + lock_timeout;
         loop {
             match FileExt::try_lock(&file) {
                 Ok(()) => return Ok(VaultLock { file }),
@@ -512,6 +509,9 @@ updated_at = "2024-01-01T00:00:00Z"
 
     #[test]
     fn lock_times_out_if_never_released() {
+        let _env_lock = crate::test_support::ENV_VAR_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         std::env::set_var("ENVLT_LOCK_TIMEOUT_MS", "200");
         let _guard = CleanupEnvVar("ENVLT_LOCK_TIMEOUT_MS");
 
