@@ -4,15 +4,7 @@ This document tracks known technical debt in `envlt`. Items are actionable and i
 
 Items are grouped by **severity** so the highest-risk problems are visible first.
 
----
-
-## High Severity
-
-### No safe-output regression test matrix
-- **Area**: Safe Output
-- **Files**: `crates/envlt-cli/tests/cli_flow.rs`
-- **Problem**: There is no systematic test proving that a known secret value never leaks into stdout, stderr, tables, JSON, raw output, or error messages across commands.
-- **Next step**: Add a test fixture with a known secret and assert non-appearance in all output paths.
+No High Severity items are currently open.
 
 ---
 

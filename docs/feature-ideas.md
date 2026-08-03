@@ -34,7 +34,6 @@ This document captures the current product state, known gaps, and a structured b
 
 | Area | Gap | Why It Matters |
 | --- | --- | --- |
-| Output hardening | Safe-output guarantees should be tested command by command | Users must trust that secrets are not printed accidentally |
 | Recovery | Vault and bundle recovery guidance can be stronger | Users need confidence before storing important local state |
 | Collaboration | Bundle import/overwrite behavior can become more transparent | Small teams need predictable handoff workflows |
 

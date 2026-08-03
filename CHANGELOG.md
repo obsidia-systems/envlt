@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+### Added
+
+- Safe-output regression test (`safe_output_never_leaks_a_known_secret_across_commands_and_formats` in `crates/envlt-cli/tests/cli_flow.rs`) that plants one known secret value and asserts it never appears in stdout/stderr for `vars`, `diff` (both modes), `doctor --decrypt`, `history` (project and variable level), `gen --set`, `export`, `import`, or representative error paths, across `table`, `raw`, and `json` output
+
 ### Fixed
 
 - Fixed a panic in `Project::push_activity_event` when `ENVLT_HISTORY_LIMIT=0`

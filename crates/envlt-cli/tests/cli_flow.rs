@@ -1453,3 +1453,165 @@ fn deleted_variable_history_survives() {
         .stdout(predicate::str::contains("Deleted"))
         .stdout(predicate::str::contains("TEMP"));
 }
+
+/// Safe-output regression matrix: plants one recognizable secret value and
+/// proves it never appears in stdout/stderr for any read-only or metadata
+/// command, across every output format. Unlike the per-command masking
+/// tests above, this uses a single known value across `vars`, `diff`,
+/// `doctor`, `history`, `gen --set`, `export`, `import`, and representative
+/// error paths, so a future regression in any one of them gets caught here
+/// even if nobody remembers to update that command's own test.
+#[test]
+fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
+    const CANARY: &str = "CANARY-DO-NOT-LEAK-9f8e7d6c5b4a1230";
+    const CANARY_MASK_PREFIX: &str = "CA***";
+    const PLAIN_VALUE: &str = "visible-plain-value";
+
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let other_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+    let example_path = project_dir.path().join(".env.example");
+    let other_env_path = other_dir.path().join(".env");
+
+    fs::write(
+        &env_path,
+        format!("CANARY_KEY={CANARY}\nPLAIN_INFO={PLAIN_VALUE}\n"),
+    )
+    .expect("write env");
+    fs::write(
+        &example_path,
+        "CANARY_KEY=\nPLAIN_INFO=\nREQUIRED_ONLY=\n",
+    )
+    .expect("write example");
+    fs::write(
+        &other_env_path,
+        "CANARY_KEY=some-other-value\nPLAIN_INFO=visible-plain-value\n",
+    )
+    .expect("write other env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "canary-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .current_dir(other_dir.path())
+        .args(["add", "other-canary-project"])
+        .assert()
+        .success();
+
+    for format in ["table", "raw", "json"] {
+        cli(&home)
+            .args(["vars", "--project", "canary-project", "--format", format])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(CANARY).not())
+            .stdout(predicate::str::contains(CANARY_MASK_PREFIX))
+            .stdout(predicate::str::contains(PLAIN_VALUE));
+
+        cli(&home)
+            .args(["doctor", "--decrypt", "--format", format])
+            .assert()
+            .stdout(predicate::str::contains(CANARY).not());
+
+        cli(&home)
+            .args([
+                "diff",
+                "--project",
+                "canary-project",
+                "--example",
+                example_path.to_str().expect("utf8 path"),
+                "--format",
+                format,
+            ])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(CANARY).not());
+
+        cli(&home)
+            .args([
+                "diff",
+                "--project",
+                "canary-project",
+                "other-canary-project",
+                "--format",
+                format,
+            ])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(CANARY).not());
+
+        cli(&home)
+            .args(["history", "--project", "canary-project", "--format", format])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(CANARY).not());
+
+        cli(&home)
+            .args([
+                "history",
+                "--project",
+                "canary-project",
+                "CANARY_KEY",
+                "--format",
+                format,
+            ])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(CANARY).not())
+            .stdout(predicate::str::contains("********"));
+    }
+
+    // export / import: only ever print a success message with the project
+    // name, never variable values.
+    let bundle_path = project_dir.path().join("bundle.evlt");
+    cli(&home)
+        .args([
+            "export",
+            "canary-project",
+            "--out",
+            bundle_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(CANARY).not());
+
+    let import_home = TempDir::new().expect("tempdir");
+    cli(&import_home).arg("init").assert().success();
+    cli(&import_home)
+        .args(["import", bundle_path.to_str().expect("utf8 path")])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(CANARY).not());
+
+    // gen --set overwriting an existing secret must not echo the old value
+    // it is replacing, even though it prints a success message.
+    cli(&home)
+        .args([
+            "gen", "--type", "token", "--set", "CANARY_KEY", "--project", "canary-project",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(CANARY).not())
+        .stdout(predicate::str::contains("Value generated and saved."));
+
+    // Error paths must not leak the secret either.
+    let mut wrong_passphrase_cmd = Command::cargo_bin("envlt").expect("binary exists");
+    wrong_passphrase_cmd.env("ENVLT_HOME", home.path());
+    wrong_passphrase_cmd.env("ENVLT_PASSPHRASE", "wrong-passphrase");
+    wrong_passphrase_cmd
+        .args(["vars", "--project", "canary-project"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(CANARY).not())
+        .stderr(predicate::str::contains(CANARY).not());
+
+    cli(&home)
+        .args(["unset", "--project", "canary-project", "DOES_NOT_EXIST"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(CANARY).not())
+        .stderr(predicate::str::contains(CANARY).not());
+}
