@@ -585,6 +585,137 @@ fn import_with_overwrite_replaces_existing_project_snapshot() {
 }
 
 #[test]
+fn import_inspect_shows_header_without_any_passphrase() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let bundle_path = project_dir.path().join("bundle.evlt");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "TOKEN=abc123\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "inspect-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args([
+            "export",
+            "inspect-project",
+            "--out",
+            bundle_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .success();
+
+    // Deliberately no ENVLT_PASSPHRASE or ENVLT_BUNDLE_PASSPHRASE: --inspect
+    // only reads the unencrypted header and must not need either.
+    let mut inspect_cmd = Command::cargo_bin("envlt").expect("binary exists");
+    inspect_cmd.env("ENVLT_HOME", home.path());
+    inspect_cmd
+        .args([
+            "import",
+            bundle_path.to_str().expect("utf8 path"),
+            "--inspect",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("project:       inspect-project"))
+        .stdout(predicate::str::contains("exported_at:"))
+        .stdout(predicate::str::contains("envlt_version:"))
+        .stdout(predicate::str::contains("abc123").not());
+}
+
+#[test]
+fn import_dry_run_previews_without_writing_to_the_vault() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let bundle_path = project_dir.path().join("bundle.evlt");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "API_KEY=super-secret\nPORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "dry-run-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args([
+            "export",
+            "dry-run-project",
+            "--out",
+            bundle_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .success();
+
+    let import_home = TempDir::new().expect("tempdir");
+    cli(&import_home).arg("init").assert().success();
+    cli(&import_home)
+        .args([
+            "import",
+            bundle_path.to_str().expect("utf8 path"),
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Dry run: importing this bundle would create project 'dry-run-project'",
+        ))
+        .stdout(predicate::str::contains("API_KEY (secret)"))
+        .stdout(predicate::str::contains("PORT (config)"))
+        .stdout(predicate::str::contains("super-secret").not())
+        .stdout(predicate::str::contains("Nothing was written"));
+
+    cli(&import_home)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("dry-run-project").not());
+}
+
+#[test]
+fn import_dry_run_reports_conflict_without_overwrite() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let bundle_path = project_dir.path().join("bundle.evlt");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "TOKEN=abc123\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "conflict-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args([
+            "export",
+            "conflict-project",
+            "--out",
+            bundle_path.to_str().expect("utf8 path"),
+        ])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "import",
+            bundle_path.to_str().expect("utf8 path"),
+            "--dry-run",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "project 'conflict-project' already exists in the vault; dry run stopped here",
+        ));
+}
+
+#[test]
 fn add_from_example_uses_defaults_and_prompts_missing_values() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
@@ -1554,11 +1685,7 @@ fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
         format!("CANARY_KEY={CANARY}\nPLAIN_INFO={PLAIN_VALUE}\n"),
     )
     .expect("write env");
-    fs::write(
-        &example_path,
-        "CANARY_KEY=\nPLAIN_INFO=\nREQUIRED_ONLY=\n",
-    )
-    .expect("write example");
+    fs::write(&example_path, "CANARY_KEY=\nPLAIN_INFO=\nREQUIRED_ONLY=\n").expect("write example");
     fs::write(
         &other_env_path,
         "CANARY_KEY=some-other-value\nPLAIN_INFO=visible-plain-value\n",
@@ -1665,7 +1792,13 @@ fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
     // it is replacing, even though it prints a success message.
     cli(&home)
         .args([
-            "gen", "--type", "token", "--set", "CANARY_KEY", "--project", "canary-project",
+            "gen",
+            "--type",
+            "token",
+            "--set",
+            "CANARY_KEY",
+            "--project",
+            "canary-project",
         ])
         .assert()
         .success()

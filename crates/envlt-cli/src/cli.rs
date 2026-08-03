@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use anyhow::{anyhow, Result};
 use envlt_core::{load_stored_passphrase, VarType, VaultStore};
@@ -14,9 +14,19 @@ pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<Passphrase> 
     }
 
     match load_stored_passphrase(store) {
-        Ok(Some(passphrase)) => return Ok(Zeroizing::new(passphrase)),
+        Ok(Some(passphrase)) => return Ok(passphrase),
         Ok(None) => {}
         Err(error) => {
+            // Falling back to an interactive prompt only helps when there is
+            // a human at the other end of stdin to answer it. In a script or
+            // CI job, silently trying anyway would just hide the real
+            // problem behind a confusing "no input" failure from the prompt
+            // itself, so surface the keyring error directly instead.
+            if !io::stdin().is_terminal() {
+                return Err(anyhow!(
+                    "failed to load stored passphrase from the system keyring: {error}"
+                ));
+            }
             eprintln!("Warning: failed to load stored passphrase: {error}");
         }
     }
@@ -37,7 +47,7 @@ pub fn read_passphrase_if_available(store: &VaultStore) -> Result<Option<Passphr
         return Ok(Some(passphrase));
     }
 
-    Ok(load_stored_passphrase(store)?.map(Zeroizing::new))
+    Ok(load_stored_passphrase(store)?)
 }
 
 fn read_env_passphrase() -> Result<Option<Passphrase>> {

@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use rand::{rngs::OsRng, RngCore};
 use scrypt::{scrypt, Params};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::{
     error::{EnvltError, Result},
@@ -179,9 +180,9 @@ pub fn encrypt_project_bundle(
         kdf_p: kdf_params.p(),
     };
 
-    let plaintext = toml::to_string(project)?;
+    let plaintext = Zeroizing::new(toml::to_string(project)?);
     let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(key.as_slice()));
     let mut ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plaintext.as_bytes())
         .map_err(|_| EnvltError::BundleDecryptFailed)?;
@@ -217,16 +218,19 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
     )
     .map_err(|_| EnvltError::InvalidBundleKdf)?;
     let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(key.as_slice()));
 
     let mut payload = archive.ciphertext;
     payload.extend_from_slice(&archive.tag);
 
-    let plaintext = cipher
-        .decrypt(Nonce::from_slice(&archive.nonce), payload.as_ref())
-        .map_err(|_| EnvltError::BundleDecryptFailed)?;
-    let plaintext = String::from_utf8(plaintext).map_err(|_| EnvltError::InvalidBundlePayload)?;
-    let project: Project = toml::from_str(&plaintext)?;
+    let plaintext = Zeroizing::new(
+        cipher
+            .decrypt(Nonce::from_slice(&archive.nonce), payload.as_ref())
+            .map_err(|_| EnvltError::BundleDecryptFailed)?,
+    );
+    let plaintext =
+        std::str::from_utf8(&plaintext).map_err(|_| EnvltError::InvalidBundlePayload)?;
+    let project: Project = toml::from_str(plaintext)?;
 
     if project.name != archive.header.project {
         return Err(EnvltError::InvalidBundlePayload);
@@ -235,9 +239,13 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
     Ok(project)
 }
 
-fn derive_key(passphrase: &str, salt: &[u8], params: &Params) -> Result<[u8; BUNDLE_KEY_LEN]> {
-    let mut key = [0_u8; BUNDLE_KEY_LEN];
-    scrypt(passphrase.as_bytes(), salt, params, &mut key)
+fn derive_key(
+    passphrase: &str,
+    salt: &[u8],
+    params: &Params,
+) -> Result<Zeroizing<[u8; BUNDLE_KEY_LEN]>> {
+    let mut key = Zeroizing::new([0_u8; BUNDLE_KEY_LEN]);
+    scrypt(passphrase.as_bytes(), salt, params, &mut key[..])
         .map_err(|_| EnvltError::InvalidBundleKdf)?;
     Ok(key)
 }

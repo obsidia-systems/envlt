@@ -96,7 +96,12 @@ fn real_main() -> Result<ExitCode> {
             },
         ),
         Commands::Export { project, out } => run_export(&service, &project, &out),
-        Commands::Import { file, overwrite } => run_import(&service, &file, overwrite),
+        Commands::Import {
+            file,
+            overwrite,
+            dry_run,
+            inspect,
+        } => run_import(&service, &file, overwrite, dry_run, inspect),
         Commands::Set {
             project,
             assignment,
@@ -289,6 +294,17 @@ enum Commands {
         file: PathBuf,
         #[arg(long, help = "Replace an existing project with the same name")]
         overwrite: bool,
+        #[arg(
+            long,
+            conflicts_with = "inspect",
+            help = "Validate and preview the import without writing to the vault"
+        )]
+        dry_run: bool,
+        #[arg(
+            long,
+            help = "Show the bundle's unencrypted header (project name, export time) without a passphrase"
+        )]
+        inspect: bool,
     },
     #[command(
         about = "Create or update a project variable",

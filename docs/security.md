@@ -23,6 +23,8 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 ### Passphrase handling in memory
 
 - `envlt-cli` reads the vault and bundle passphrases into `Zeroizing<String>`, which is zeroed out as soon as it goes out of scope, rather than left as an ordinary `String` for the lifetime of the process
+- `envlt-core` extends this through the passphrase's full round-trip: the copy read back from the system keyring (including the write-verification read), the decrypted vault/project plaintext returned by `vault::crypto::decrypt`, the plaintext TOML passed into and out of `VaultStore::load`/`save`, and the scrypt-derived bundle key are all held in `Zeroizing` wrappers and cleared on drop
+- this does not extend to the deserialized vault contents themselves -- once loaded, a `Variable`'s value lives as a plain `String` for as long as the vault stays in memory; see `docs/tech-debt.md` for why that boundary is intentional
 
 ### Basic backup strategy
 

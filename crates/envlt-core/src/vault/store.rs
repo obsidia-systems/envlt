@@ -7,6 +7,7 @@ use std::{
 
 use fs4::{FileExt, TryLockError};
 use tempfile::NamedTempFile;
+use zeroize::Zeroizing;
 
 use crate::{
     error::{EnvltError, Result},
@@ -21,6 +22,11 @@ use crate::{
 /// finish before giving up. Overridable via `ENVLT_LOCK_TIMEOUT_MS`.
 const DEFAULT_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 const LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// Number of additional numbered backups kept beyond `vault.age.bak`, so a
+/// write that corrupts the most recent backup doesn't destroy every prior
+/// good copy.
+const BACKUP_GENERATIONS: u32 = 2;
 
 fn lock_timeout() -> Duration {
     std::env::var("ENVLT_LOCK_TIMEOUT_MS")
@@ -163,13 +169,14 @@ impl VaultStore {
         }
 
         let ciphertext = fs::read(&self.vault_path)?;
-        let plaintext = crypto::decrypt(&ciphertext, passphrase)?;
-        let plaintext = String::from_utf8(plaintext).map_err(|err| EnvltError::EnvParse {
-            path: self.vault_path.clone(),
-            message: format!("vault content is not valid UTF-8: {err}"),
-        })?;
+        let plaintext_bytes = crypto::decrypt(&ciphertext, passphrase)?;
+        let plaintext =
+            std::str::from_utf8(&plaintext_bytes).map_err(|err| EnvltError::EnvParse {
+                path: self.vault_path.clone(),
+                message: format!("vault content is not valid UTF-8: {err}"),
+            })?;
 
-        let mut table: toml::value::Table = toml::from_str(&plaintext)?;
+        let mut table: toml::value::Table = toml::from_str(plaintext)?;
         let stored_version = table
             .get("version")
             .and_then(toml::Value::as_integer)
@@ -191,7 +198,7 @@ impl VaultStore {
             None
         };
 
-        let migrated_toml = toml::to_string(&table)?;
+        let migrated_toml = Zeroizing::new(toml::to_string(&table)?);
         let vault: VaultData = toml::from_str(&migrated_toml)?;
         Ok((vault, migrated_from))
     }
@@ -208,14 +215,15 @@ impl VaultStore {
         Ok(())
     }
 
-    /// Encrypt and atomically save the vault, creating a backup first.
+    /// Encrypt and atomically save the vault, rotating backups first.
     pub fn save(&self, vault: &VaultData, passphrase: &str) -> Result<()> {
         create_dir_restricted(&self.root_dir)?;
         if self.vault_path.exists() {
+            self.rotate_backups()?;
             fs::copy(&self.vault_path, &self.backup_path)?;
             set_restrictive_permissions(&self.backup_path)?;
         }
-        let plaintext = toml::to_string(vault)?;
+        let plaintext = Zeroizing::new(toml::to_string(vault)?);
         let ciphertext = crypto::encrypt(plaintext.as_bytes(), passphrase)?;
 
         let parent = self
@@ -239,6 +247,33 @@ impl VaultStore {
         temp.as_file().sync_all()?;
         temp.persist(&self.vault_path).map_err(|err| err.error)?;
         sync_dir(parent)?;
+        Ok(())
+    }
+
+    /// Path to a numbered, older backup generation (`vault.age.bak.{generation}`).
+    ///
+    /// `generation` 1 is the backup one save older than `vault.age.bak`, up
+    /// to [`BACKUP_GENERATIONS`].
+    pub fn numbered_backup_path(&self, generation: u32) -> PathBuf {
+        self.root_dir.join(format!("vault.age.bak.{generation}"))
+    }
+
+    /// Shift `vault.age.bak` -> `vault.age.bak.1` -> ... -> `vault.age.bak.{BACKUP_GENERATIONS}`,
+    /// dropping whatever previously occupied the oldest generation, so a
+    /// single corrupted write can't destroy every prior good backup.
+    fn rotate_backups(&self) -> Result<()> {
+        for generation in (1..=BACKUP_GENERATIONS).rev() {
+            let from = if generation == 1 {
+                self.backup_path.clone()
+            } else {
+                self.numbered_backup_path(generation - 1)
+            };
+            let to = self.numbered_backup_path(generation);
+
+            if from.exists() {
+                fs::rename(&from, &to)?;
+            }
+        }
         Ok(())
     }
 }
@@ -290,7 +325,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::vault::model::VaultData;
+    use crate::vault::model::{Project, VaultData};
 
     #[test]
     fn initialize_restricts_home_dir_and_vault_file_permissions() {
@@ -326,6 +361,40 @@ mod tests {
     }
 
     #[test]
+    fn save_rotates_backups_and_drops_oldest_beyond_retention() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().join(".envlt"));
+        store.initialize("passphrase").expect("initialize");
+
+        let vault_with_project = |name: &str| {
+            let mut vault = VaultData::new();
+            vault
+                .projects
+                .insert(name.to_owned(), Project::new(name, None));
+            vault
+        };
+
+        for name in ["state-1", "state-2", "state-3", "state-4"] {
+            store
+                .save(&vault_with_project(name), "passphrase")
+                .expect("save");
+        }
+
+        let sole_project_in = |path: &Path| -> String {
+            let ciphertext = fs::read(path).expect("read backup");
+            let plaintext = crypto::decrypt(&ciphertext, "passphrase").expect("decrypt backup");
+            let vault: VaultData =
+                toml::from_str(std::str::from_utf8(&plaintext).expect("utf8")).expect("parse");
+            vault.projects.keys().next().cloned().expect("one project")
+        };
+
+        assert_eq!(sole_project_in(store.backup_path()), "state-3");
+        assert_eq!(sole_project_in(&store.numbered_backup_path(1)), "state-2");
+        assert_eq!(sole_project_in(&store.numbered_backup_path(2)), "state-1");
+        assert!(!store.numbered_backup_path(3).exists());
+    }
+
+    #[test]
     fn load_migrates_v1_and_keeps_a_pre_migration_backup() {
         let home = TempDir::new().expect("tempdir");
         let store = VaultStore::new(home.path().to_path_buf());
@@ -343,7 +412,8 @@ updated_at = "2024-01-01T00:00:00Z"
 
 [projects.demo.variables]
 "#;
-        let original_ciphertext = crypto::encrypt(v1_toml.as_bytes(), "passphrase").expect("encrypt");
+        let original_ciphertext =
+            crypto::encrypt(v1_toml.as_bytes(), "passphrase").expect("encrypt");
         fs::write(store.vault_path(), &original_ciphertext).expect("write v1 vault");
 
         let (vault, migrated_from) = store
@@ -365,9 +435,7 @@ updated_at = "2024-01-01T00:00:00Z"
         let store = VaultStore::new(home.path().join(".envlt"));
         store.initialize("passphrase").expect("initialize");
 
-        let (_vault, migrated_from) = store
-            .load_with_migration_info("passphrase")
-            .expect("load");
+        let (_vault, migrated_from) = store.load_with_migration_info("passphrase").expect("load");
 
         assert_eq!(migrated_from, None);
     }
@@ -382,7 +450,9 @@ updated_at = "2024-01-01T00:00:00Z"
         let ciphertext = crypto::encrypt(future_toml.as_bytes(), "passphrase").expect("encrypt");
         fs::write(store.vault_path(), ciphertext).expect("write future vault");
 
-        let error = store.load("passphrase").expect_err("future version rejected");
+        let error = store
+            .load("passphrase")
+            .expect_err("future version rejected");
         assert!(matches!(
             error,
             EnvltError::UnsupportedVaultVersion {
@@ -402,7 +472,9 @@ updated_at = "2024-01-01T00:00:00Z"
         let ciphertext = crypto::encrypt(too_old_toml.as_bytes(), "passphrase").expect("encrypt");
         fs::write(store.vault_path(), ciphertext).expect("write too-old vault");
 
-        let error = store.load("passphrase").expect_err("too-old version rejected");
+        let error = store
+            .load("passphrase")
+            .expect_err("too-old version rejected");
         assert!(matches!(
             error,
             EnvltError::UnsupportedVaultVersion {
@@ -424,7 +496,9 @@ updated_at = "2024-01-01T00:00:00Z"
         let first_lock = store.lock().expect("first lock");
         let handle = std::thread::spawn(move || {
             ready_tx.send(()).expect("signal ready");
-            contender.lock().expect("second lock should eventually succeed")
+            contender
+                .lock()
+                .expect("second lock should eventually succeed")
         });
 
         // Make sure the contender is actively waiting before we release the lock.

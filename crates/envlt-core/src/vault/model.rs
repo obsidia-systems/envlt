@@ -102,7 +102,10 @@ impl Project {
             .unwrap_or(DEFAULT_HISTORY_LIMIT);
 
         if self.activity_log.len() >= limit {
-            let overflow = self.activity_log.len().saturating_sub(limit.saturating_sub(1));
+            let overflow = self
+                .activity_log
+                .len()
+                .saturating_sub(limit.saturating_sub(1));
             self.activity_log.drain(..overflow);
         }
         self.activity_log.push(event);

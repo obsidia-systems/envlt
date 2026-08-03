@@ -6,6 +6,7 @@ use std::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use keyring::Entry;
 use keyring::Error as KeyringError;
+use zeroize::Zeroizing;
 
 use crate::{
     error::{EnvltError, Result},
@@ -27,7 +28,7 @@ pub struct AuthStatus {
 }
 
 /// Load a passphrase from the system keyring if one is stored.
-pub fn load_stored_passphrase(store: &VaultStore) -> Result<Option<String>> {
+pub fn load_stored_passphrase(store: &VaultStore) -> Result<Option<Zeroizing<String>>> {
     load_with_backend(&system_backend(), store)
 }
 
@@ -41,11 +42,14 @@ pub fn clear_stored_passphrase(store: &VaultStore) -> Result<bool> {
     clear_with_backend(&system_backend(), store)
 }
 
-fn load_with_backend(backend: &dyn KeyringBackend, store: &VaultStore) -> Result<Option<String>> {
+fn load_with_backend(
+    backend: &dyn KeyringBackend,
+    store: &VaultStore,
+) -> Result<Option<Zeroizing<String>>> {
     match backend.get_password(store) {
-        Ok(password) => Ok(Some(password)),
+        Ok(password) => Ok(Some(Zeroizing::new(password))),
         Err(KeyringError::NoEntry) => match backend.get_password_legacy(store) {
-            Ok(password) => Ok(Some(password)),
+            Ok(password) => Ok(Some(Zeroizing::new(password))),
             Err(KeyringError::NoEntry) => Ok(None),
             Err(error) => Err(map_keyring_error(error)),
         },
@@ -63,10 +67,16 @@ fn save_with_backend(
         .map_err(map_keyring_error)?;
 
     match backend.get_password(store) {
-        Ok(saved_passphrase) if saved_passphrase == passphrase => Ok(()),
-        Ok(_) => Err(EnvltError::Keyring {
-            message: "keyring write verification failed: stored value mismatch".to_owned(),
-        }),
+        Ok(saved_passphrase) => {
+            let saved_passphrase = Zeroizing::new(saved_passphrase);
+            if saved_passphrase.as_str() == passphrase {
+                Ok(())
+            } else {
+                Err(EnvltError::Keyring {
+                    message: "keyring write verification failed: stored value mismatch".to_owned(),
+                })
+            }
+        }
         Err(error) => Err(map_keyring_error(error)),
     }
 }
@@ -306,7 +316,7 @@ mod tests {
         super::save_with_backend(&backend, &store, "secret-passphrase").expect("save");
         assert_eq!(
             super::load_with_backend(&backend, &store).expect("load"),
-            Some("secret-passphrase".to_owned())
+            Some(Zeroizing::new("secret-passphrase".to_owned()))
         );
 
         assert!(super::clear_with_backend(&backend, &store).expect("clear"));
@@ -351,7 +361,9 @@ mod tests {
             .expect("save to real keychain");
         assert_eq!(
             super::load_stored_passphrase(&store).expect("load after save"),
-            Some("real-keychain-smoke-test-passphrase".to_owned())
+            Some(Zeroizing::new(
+                "real-keychain-smoke-test-passphrase".to_owned()
+            ))
         );
 
         assert!(super::clear_stored_passphrase(&store).expect("clear"));

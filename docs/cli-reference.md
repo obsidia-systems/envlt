@@ -376,19 +376,24 @@ Export a project as an encrypted `.evlt` bundle.
 envlt export api-payments --out bundle.evlt
 ```
 
-### `envlt import <path> [--overwrite]`
+### `envlt import <path> [--overwrite] [--dry-run] [--inspect]`
 
 Import a bundle into the local vault.
 
 ```bash
 envlt import bundle.evlt
 envlt import bundle.evlt --overwrite
+envlt import bundle.evlt --inspect
+envlt import bundle.evlt --dry-run
 ```
 
 Behavior:
 
 - fails by default if the project already exists
 - replaces the full project snapshot when `--overwrite` is used
+- `--inspect` prints the bundle's unencrypted header (project name, export time, envlt version) and exits; it needs no vault or bundle passphrase, since the header sits outside the encrypted payload
+- `--dry-run` decrypts the bundle and checks it against the vault (project name, variable keys and types, whether it would create or overwrite) without writing anything; it still needs both passphrases, since checking for a name conflict requires decrypting the vault
+- `--dry-run` and `--inspect` are mutually exclusive
 
 ### `envlt completions <shell>`
 

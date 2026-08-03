@@ -1898,7 +1898,7 @@ updated_at = "2024-01-01T00:00:00Z"
         let vault_text = {
             let ciphertext = fs::read(service.store().vault_path()).expect("read vault");
             let plaintext = crypto::decrypt(&ciphertext, "passphrase").expect("decrypt");
-            String::from_utf8(plaintext).expect("utf8")
+            String::from_utf8(plaintext.to_vec()).expect("utf8")
         };
 
         assert!(vault_text.contains("version = 2"));
