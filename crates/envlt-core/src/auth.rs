@@ -1,12 +1,9 @@
-#[cfg(target_os = "macos")]
-use std::process::Command;
 use std::{
     env,
     path::{Path, PathBuf},
 };
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-#[cfg(not(target_os = "macos"))]
 use keyring::Entry;
 use keyring::Error as KeyringError;
 
@@ -149,35 +146,13 @@ struct SystemKeyring;
 
 impl KeyringBackend for SystemKeyring {
     fn get_password(&self, store: &VaultStore) -> std::result::Result<String, KeyringError> {
-        #[cfg(target_os = "macos")]
-        {
-            macos_get_password(store)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let entry = entry_for_store(store).map_err(|error| match error {
-                EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
-                other => KeyringError::PlatformFailure(other.to_string().into()),
-            })?;
-            entry.get_password()
-        }
+        let entry = entry_for_store(store).map_err(to_platform_failure)?;
+        entry.get_password()
     }
 
     fn get_password_legacy(&self, store: &VaultStore) -> std::result::Result<String, KeyringError> {
-        #[cfg(target_os = "macos")]
-        {
-            macos_get_password_legacy(store)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let entry = legacy_entry_for_store(store).map_err(|error| match error {
-                EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
-                other => KeyringError::PlatformFailure(other.to_string().into()),
-            })?;
-            entry.get_password()
-        }
+        let entry = legacy_entry_for_store(store).map_err(to_platform_failure)?;
+        entry.get_password()
     }
 
     fn set_password(
@@ -185,51 +160,18 @@ impl KeyringBackend for SystemKeyring {
         store: &VaultStore,
         passphrase: &str,
     ) -> std::result::Result<(), KeyringError> {
-        #[cfg(target_os = "macos")]
-        {
-            macos_set_password(store, passphrase)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let entry = entry_for_store(store).map_err(|error| match error {
-                EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
-                other => KeyringError::PlatformFailure(other.to_string().into()),
-            })?;
-            entry.set_password(passphrase)
-        }
+        let entry = entry_for_store(store).map_err(to_platform_failure)?;
+        entry.set_password(passphrase)
     }
 
     fn delete_password(&self, store: &VaultStore) -> std::result::Result<(), KeyringError> {
-        #[cfg(target_os = "macos")]
-        {
-            macos_delete_password(store)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let entry = entry_for_store(store).map_err(|error| match error {
-                EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
-                other => KeyringError::PlatformFailure(other.to_string().into()),
-            })?;
-            entry.delete_credential()
-        }
+        let entry = entry_for_store(store).map_err(to_platform_failure)?;
+        entry.delete_credential()
     }
 
     fn delete_password_legacy(&self, store: &VaultStore) -> std::result::Result<(), KeyringError> {
-        #[cfg(target_os = "macos")]
-        {
-            macos_delete_password_legacy(store)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let entry = legacy_entry_for_store(store).map_err(|error| match error {
-                EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
-                other => KeyringError::PlatformFailure(other.to_string().into()),
-            })?;
-            entry.delete_credential()
-        }
+        let entry = legacy_entry_for_store(store).map_err(to_platform_failure)?;
+        entry.delete_credential()
     }
 }
 
@@ -237,13 +179,18 @@ fn system_backend() -> SystemKeyring {
     SystemKeyring
 }
 
-#[cfg(not(target_os = "macos"))]
+fn to_platform_failure(error: EnvltError) -> KeyringError {
+    match error {
+        EnvltError::Keyring { message } => KeyringError::PlatformFailure(message.into()),
+        other => KeyringError::PlatformFailure(other.to_string().into()),
+    }
+}
+
 fn entry_for_store(store: &VaultStore) -> Result<Entry> {
     let service = keyring_service(store)?;
     Entry::new(&service, KEYRING_ACCOUNT).map_err(map_keyring_error)
 }
 
-#[cfg(not(target_os = "macos"))]
 fn legacy_entry_for_store(store: &VaultStore) -> Result<Entry> {
     let target = keyring_target(store)?;
     Entry::new("envlt", &target).map_err(map_keyring_error)
@@ -255,124 +202,6 @@ fn keyring_service(store: &VaultStore) -> Result<String> {
         "{KEYRING_SERVICE_PREFIX}{}",
         URL_SAFE_NO_PAD.encode(target.as_bytes())
     ))
-}
-
-#[cfg(target_os = "macos")]
-fn macos_get_password(store: &VaultStore) -> std::result::Result<String, KeyringError> {
-    let service = keyring_service(store)
-        .map_err(|error| KeyringError::PlatformFailure(error.to_string().into()))?;
-    macos_find_password(&service)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_get_password_legacy(store: &VaultStore) -> std::result::Result<String, KeyringError> {
-    let service = keyring_target(store)
-        .map_err(|error| KeyringError::PlatformFailure(error.to_string().into()))?;
-    macos_find_password_with_account("envlt", &service)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_set_password(
-    store: &VaultStore,
-    passphrase: &str,
-) -> std::result::Result<(), KeyringError> {
-    let service = keyring_service(store)
-        .map_err(|error| KeyringError::PlatformFailure(error.to_string().into()))?;
-    let output = Command::new("security")
-        .args([
-            "add-generic-password",
-            "-a",
-            KEYRING_ACCOUNT,
-            "-s",
-            &service,
-            "-w",
-            passphrase,
-            "-U",
-        ])
-        .output()
-        .map_err(|error| KeyringError::PlatformFailure(error.into()))?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        Err(KeyringError::PlatformFailure(
-            format!(
-                "security add-generic-password failed with status {}: {}",
-                output.status, stderr
-            )
-            .into(),
-        ))
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn macos_delete_password(store: &VaultStore) -> std::result::Result<(), KeyringError> {
-    let service = keyring_service(store)
-        .map_err(|error| KeyringError::PlatformFailure(error.to_string().into()))?;
-    macos_delete_password_with_account(KEYRING_ACCOUNT, &service)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_delete_password_legacy(store: &VaultStore) -> std::result::Result<(), KeyringError> {
-    let service = keyring_target(store)
-        .map_err(|error| KeyringError::PlatformFailure(error.to_string().into()))?;
-    macos_delete_password_with_account("envlt", &service)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_find_password(service: &str) -> std::result::Result<String, KeyringError> {
-    macos_find_password_with_account(KEYRING_ACCOUNT, service)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_find_password_with_account(
-    account: &str,
-    service: &str,
-) -> std::result::Result<String, KeyringError> {
-    let output = Command::new("security")
-        .args(["find-generic-password", "-a", account, "-s", service, "-w"])
-        .output()
-        .map_err(|error| KeyringError::PlatformFailure(error.into()))?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim_end_matches(['\r', '\n'])
-            .to_owned())
-    } else if output.status.code() == Some(44) {
-        Err(KeyringError::NoEntry)
-    } else {
-        Err(KeyringError::PlatformFailure(
-            String::from_utf8_lossy(&output.stderr)
-                .trim()
-                .to_owned()
-                .into(),
-        ))
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn macos_delete_password_with_account(
-    account: &str,
-    service: &str,
-) -> std::result::Result<(), KeyringError> {
-    let output = Command::new("security")
-        .args(["delete-generic-password", "-a", account, "-s", service])
-        .output()
-        .map_err(|error| KeyringError::PlatformFailure(error.into()))?;
-
-    if output.status.success() {
-        Ok(())
-    } else if output.status.code() == Some(44) {
-        Err(KeyringError::NoEntry)
-    } else {
-        Err(KeyringError::PlatformFailure(
-            String::from_utf8_lossy(&output.stderr)
-                .trim()
-                .to_owned()
-                .into(),
-        ))
-    }
 }
 
 #[cfg(test)]
@@ -486,5 +315,49 @@ mod tests {
             None
         );
         assert!(!super::clear_with_backend(&backend, &store).expect("clear again"));
+    }
+
+    /// Exercises the real OS keychain (not `FakeBackend`), using a
+    /// throwaway, uniquely-named `VaultStore` path so it can't collide with
+    /// or disturb a real vault's stored credential. Ignored by default
+    /// since CI sandboxes may not have a usable OS keychain; run explicitly
+    /// with `cargo test -- --ignored` on a machine that does.
+    #[test]
+    #[ignore = "touches the real OS keychain; run explicitly on a supported machine"]
+    fn system_keyring_roundtrip_works_against_the_real_os_backend() {
+        let temp = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(
+            temp.path()
+                .join(format!("envlt-keyring-smoke-test-{}", std::process::id())),
+        );
+
+        // Make sure we start from a clean slate, then guarantee cleanup even
+        // if an assertion below fails.
+        let _ = super::clear_stored_passphrase(&store);
+        struct CleanupKeychainEntry(VaultStore);
+        impl Drop for CleanupKeychainEntry {
+            fn drop(&mut self) {
+                let _ = super::clear_stored_passphrase(&self.0);
+            }
+        }
+        let _cleanup = CleanupKeychainEntry(store.clone());
+
+        assert_eq!(
+            super::load_stored_passphrase(&store).expect("load before save"),
+            None
+        );
+
+        super::save_stored_passphrase(&store, "real-keychain-smoke-test-passphrase")
+            .expect("save to real keychain");
+        assert_eq!(
+            super::load_stored_passphrase(&store).expect("load after save"),
+            Some("real-keychain-smoke-test-passphrase".to_owned())
+        );
+
+        assert!(super::clear_stored_passphrase(&store).expect("clear"));
+        assert_eq!(
+            super::load_stored_passphrase(&store).expect("load after clear"),
+            None
+        );
     }
 }

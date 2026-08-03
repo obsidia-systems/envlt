@@ -23,6 +23,12 @@ pub enum EnvltError {
         /// Existing vault path.
         path: PathBuf,
     },
+    /// Could not acquire the vault lock before the timeout elapsed.
+    #[error("could not acquire vault lock at {path} (another envlt process may be running)")]
+    VaultLocked {
+        /// Path to the lock file.
+        path: PathBuf,
+    },
     /// Vault version does not match the supported version.
     #[error("unsupported vault version: expected {expected}, got {actual}")]
     UnsupportedVaultVersion {

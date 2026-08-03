@@ -16,7 +16,7 @@ pub fn run_doctor(service: &AppService, decrypt: bool, format: OutputFormat) -> 
         None
     };
 
-    let report = service.doctor(None, passphrase.as_deref());
+    let report = service.doctor(None, passphrase.as_ref().map(|p| p.as_str()));
     let has_errors = report.has_errors();
 
     match format {

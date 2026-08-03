@@ -102,7 +102,7 @@ impl Project {
             .unwrap_or(DEFAULT_HISTORY_LIMIT);
 
         if self.activity_log.len() >= limit {
-            let overflow = self.activity_log.len().saturating_sub(limit - 1);
+            let overflow = self.activity_log.len().saturating_sub(limit.saturating_sub(1));
             self.activity_log.drain(..overflow);
         }
         self.activity_log.push(event);
@@ -248,7 +248,42 @@ pub fn infer_var_type(name: &str) -> VarType {
 
 #[cfg(test)]
 mod tests {
-    use super::{infer_var_type, VarType, Variable};
+    use super::{infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable};
+
+    struct CleanupEnvVar(&'static str);
+
+    impl Drop for CleanupEnvVar {
+        fn drop(&mut self) {
+            std::env::remove_var(self.0);
+        }
+    }
+
+    #[test]
+    fn push_activity_event_does_not_panic_when_limit_is_zero() {
+        std::env::set_var("ENVLT_HISTORY_LIMIT", "0");
+        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
+
+        let mut project = Project::new("test-project", None);
+        project.push_activity_event(ActivityEvent::new(
+            ActivityAction::VariableCreated,
+            "A",
+            None,
+            Some("1".to_owned()),
+            None,
+            None,
+        ));
+        project.push_activity_event(ActivityEvent::new(
+            ActivityAction::VariableCreated,
+            "B",
+            None,
+            Some("2".to_owned()),
+            None,
+            None,
+        ));
+
+        assert_eq!(project.activity_log.len(), 1);
+        assert_eq!(project.activity_log[0].variable_key, "B");
+    }
 
     #[test]
     fn infers_secret_type_from_sensitive_key_names() {

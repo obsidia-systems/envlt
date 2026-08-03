@@ -25,6 +25,26 @@ pub const BUNDLE_TAG_LEN: usize = 16;
 pub const BUNDLE_SALT_LEN: usize = 16;
 const BUNDLE_KEY_LEN: usize = 32;
 
+/// scrypt `log_n` used by bundles produced before KDF params were recorded
+/// in the header. Matches `Params::recommended()` as of scrypt 0.11, so
+/// older bundles keep decrypting with the exact values they were encrypted
+/// with even if a future scrypt release changes its recommendation.
+fn legacy_kdf_log_n() -> u8 {
+    17
+}
+
+/// scrypt `r` used by bundles produced before KDF params were recorded in
+/// the header. See [`legacy_kdf_log_n`].
+fn legacy_kdf_r() -> u32 {
+    8
+}
+
+/// scrypt `p` used by bundles produced before KDF params were recorded in
+/// the header. See [`legacy_kdf_log_n`].
+fn legacy_kdf_p() -> u32 {
+    1
+}
+
 /// Metadata header stored inside an encrypted bundle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BundleHeader {
@@ -36,6 +56,15 @@ pub struct BundleHeader {
     pub envlt_version: String,
     /// Base64-encoded KDF salt.
     pub kdf_salt_b64: String,
+    /// scrypt `log_n` parameter used to derive the bundle key.
+    #[serde(default = "legacy_kdf_log_n")]
+    pub kdf_log_n: u8,
+    /// scrypt `r` parameter used to derive the bundle key.
+    #[serde(default = "legacy_kdf_r")]
+    pub kdf_r: u32,
+    /// scrypt `p` parameter used to derive the bundle key.
+    #[serde(default = "legacy_kdf_p")]
+    pub kdf_p: u32,
 }
 
 /// In-memory representation of an encrypted `.evlt` bundle.
@@ -139,15 +168,19 @@ pub fn encrypt_project_bundle(
     OsRng.fill_bytes(&mut nonce);
     OsRng.fill_bytes(&mut salt);
 
+    let kdf_params = Params::recommended();
     let header = BundleHeader {
         project: project.name.clone(),
         exported_at: Utc::now(),
         envlt_version: envlt_version.to_owned(),
         kdf_salt_b64: STANDARD_NO_PAD.encode(salt),
+        kdf_log_n: kdf_params.log_n(),
+        kdf_r: kdf_params.r(),
+        kdf_p: kdf_params.p(),
     };
 
     let plaintext = toml::to_string(project)?;
-    let key = derive_key(bundle_passphrase, &salt)?;
+    let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
     let mut ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plaintext.as_bytes())
@@ -176,7 +209,14 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
     let salt = STANDARD_NO_PAD
         .decode(&archive.header.kdf_salt_b64)
         .map_err(|_| EnvltError::InvalidBundlePayload)?;
-    let key = derive_key(bundle_passphrase, &salt)?;
+    let kdf_params = Params::new(
+        archive.header.kdf_log_n,
+        archive.header.kdf_r,
+        archive.header.kdf_p,
+        BUNDLE_KEY_LEN,
+    )
+    .map_err(|_| EnvltError::InvalidBundleKdf)?;
+    let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
 
     let mut payload = archive.ciphertext;
@@ -195,10 +235,9 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
     Ok(project)
 }
 
-fn derive_key(passphrase: &str, salt: &[u8]) -> Result<[u8; BUNDLE_KEY_LEN]> {
-    let params = Params::recommended();
+fn derive_key(passphrase: &str, salt: &[u8], params: &Params) -> Result<[u8; BUNDLE_KEY_LEN]> {
     let mut key = [0_u8; BUNDLE_KEY_LEN];
-    scrypt(passphrase.as_bytes(), salt, &params, &mut key)
+    scrypt(passphrase.as_bytes(), salt, params, &mut key)
         .map_err(|_| EnvltError::InvalidBundleKdf)?;
     Ok(key)
 }
@@ -221,6 +260,9 @@ mod tests {
                 exported_at: Utc::now(),
                 envlt_version: "0.1.0".to_owned(),
                 kdf_salt_b64: "salt".to_owned(),
+                kdf_log_n: 17,
+                kdf_r: 8,
+                kdf_p: 1,
             },
             nonce: [7_u8; 12],
             ciphertext: vec![1, 2, 3, 4, 5],
@@ -295,5 +337,60 @@ mod tests {
 
         let error = decrypt_project_bundle(&bundle, "wrong-password").expect_err("wrong pass");
         assert!(matches!(error, EnvltError::BundleDecryptFailed));
+    }
+
+    /// Bundles written before KDF params were recorded in the header must
+    /// keep decrypting with the exact scrypt settings they were encrypted
+    /// with, even though `Params::recommended()` may change in a future
+    /// scrypt release. Simulates such a legacy bundle by hand-encoding a
+    /// header without `kdf_log_n`/`kdf_r`/`kdf_p` and relying on `serde`
+    /// defaults to fill in the historical values (log_n=17, r=8, p=1).
+    #[test]
+    fn decrypt_falls_back_to_legacy_kdf_params_for_headers_without_them() {
+        use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
+        use chacha20poly1305::{
+            aead::{Aead, KeyInit},
+            ChaCha20Poly1305, Key, Nonce,
+        };
+        use scrypt::{scrypt, Params};
+
+        let project = Project::new("legacy-project", None);
+        let plaintext = toml::to_string(&project).expect("serialize project");
+
+        let salt = [3_u8; super::BUNDLE_SALT_LEN];
+        let nonce = [4_u8; super::BUNDLE_NONCE_LEN];
+        let params = Params::new(17, 8, 1, 32).expect("legacy params");
+        let mut key = [0_u8; 32];
+        scrypt(b"legacy-password", &salt, &params, &mut key).expect("derive key");
+
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+        let mut ciphertext = cipher
+            .encrypt(Nonce::from_slice(&nonce), plaintext.as_bytes())
+            .expect("encrypt");
+        let tag: Vec<u8> = ciphertext.split_off(ciphertext.len() - super::BUNDLE_TAG_LEN);
+
+        // Hand-built header JSON with no kdf_log_n/kdf_r/kdf_p, matching what
+        // encrypt_project_bundle produced before this field was added.
+        let header_json = serde_json::json!({
+            "project": "legacy-project",
+            "exported_at": Utc::now().to_rfc3339(),
+            "envlt_version": "0.2.2",
+            "kdf_salt_b64": STANDARD_NO_PAD.encode(salt),
+        })
+        .to_string();
+        let header_bytes = header_json.into_bytes();
+
+        let mut bundle = Vec::new();
+        bundle.extend_from_slice(&BUNDLE_MAGIC);
+        bundle.push(1);
+        bundle.extend_from_slice(&(header_bytes.len() as u16).to_be_bytes());
+        bundle.extend_from_slice(&header_bytes);
+        bundle.extend_from_slice(&nonce);
+        bundle.extend_from_slice(&ciphertext);
+        bundle.extend_from_slice(&tag);
+
+        let restored =
+            decrypt_project_bundle(&bundle, "legacy-password").expect("decrypt legacy bundle");
+        assert_eq!(restored.name, "legacy-project");
     }
 }

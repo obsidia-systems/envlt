@@ -2,14 +2,19 @@ use std::io::{self, Write};
 
 use anyhow::{anyhow, Result};
 use envlt_core::{load_stored_passphrase, VarType, VaultStore};
+use zeroize::Zeroizing;
 
-pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<String> {
+/// A passphrase held only long enough to authenticate, zeroized on drop so
+/// it doesn't linger in memory for the rest of the process's lifetime.
+pub type Passphrase = Zeroizing<String>;
+
+pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<Passphrase> {
     if let Some(passphrase) = read_env_passphrase()? {
         return Ok(passphrase);
     }
 
     match load_stored_passphrase(store) {
-        Ok(Some(passphrase)) => return Ok(passphrase),
+        Ok(Some(passphrase)) => return Ok(Zeroizing::new(passphrase)),
         Ok(None) => {}
         Err(error) => {
             eprintln!("Warning: failed to load stored passphrase: {error}");
@@ -19,7 +24,7 @@ pub fn read_passphrase(store: &VaultStore, confirm: bool) -> Result<String> {
     prompt_passphrase(confirm)
 }
 
-pub fn read_passphrase_without_keyring(confirm: bool) -> Result<String> {
+pub fn read_passphrase_without_keyring(confirm: bool) -> Result<Passphrase> {
     if let Some(passphrase) = read_env_passphrase()? {
         return Ok(passphrase);
     }
@@ -27,29 +32,29 @@ pub fn read_passphrase_without_keyring(confirm: bool) -> Result<String> {
     prompt_passphrase(confirm)
 }
 
-pub fn read_passphrase_if_available(store: &VaultStore) -> Result<Option<String>> {
+pub fn read_passphrase_if_available(store: &VaultStore) -> Result<Option<Passphrase>> {
     if let Some(passphrase) = read_env_passphrase()? {
         return Ok(Some(passphrase));
     }
 
-    Ok(load_stored_passphrase(store)?)
+    Ok(load_stored_passphrase(store)?.map(Zeroizing::new))
 }
 
-fn read_env_passphrase() -> Result<Option<String>> {
+fn read_env_passphrase() -> Result<Option<Passphrase>> {
     if let Some(passphrase) = std::env::var_os("ENVLT_PASSPHRASE") {
         return passphrase
             .into_string()
-            .map(Some)
+            .map(|value| Some(Zeroizing::new(value)))
             .map_err(|_| anyhow!("ENVLT_PASSPHRASE contains invalid UTF-8"));
     }
 
     Ok(None)
 }
 
-fn prompt_passphrase(confirm: bool) -> Result<String> {
-    let passphrase = rpassword::prompt_password("Vault passphrase: ")?;
+fn prompt_passphrase(confirm: bool) -> Result<Passphrase> {
+    let passphrase = Zeroizing::new(rpassword::prompt_password("Vault passphrase: ")?);
     if confirm {
-        let confirmation = rpassword::prompt_password("Confirm passphrase: ")?;
+        let confirmation = Zeroizing::new(rpassword::prompt_password("Confirm passphrase: ")?);
         if passphrase != confirmation {
             return Err(anyhow!("passphrases do not match"));
         }
@@ -58,16 +63,18 @@ fn prompt_passphrase(confirm: bool) -> Result<String> {
     Ok(passphrase)
 }
 
-pub fn read_bundle_passphrase(confirm: bool) -> Result<String> {
+pub fn read_bundle_passphrase(confirm: bool) -> Result<Passphrase> {
     if let Some(passphrase) = std::env::var_os("ENVLT_BUNDLE_PASSPHRASE") {
         return passphrase
             .into_string()
+            .map(Zeroizing::new)
             .map_err(|_| anyhow!("ENVLT_BUNDLE_PASSPHRASE contains invalid UTF-8"));
     }
 
-    let passphrase = rpassword::prompt_password("Bundle passphrase: ")?;
+    let passphrase = Zeroizing::new(rpassword::prompt_password("Bundle passphrase: ")?);
     if confirm {
-        let confirmation = rpassword::prompt_password("Confirm bundle passphrase: ")?;
+        let confirmation =
+            Zeroizing::new(rpassword::prompt_password("Confirm bundle passphrase: ")?);
         if passphrase != confirmation {
             return Err(anyhow!("bundle passphrases do not match"));
         }

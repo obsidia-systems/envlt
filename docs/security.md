@@ -18,6 +18,11 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 - the stored credential is scoped to the current `ENVLT_HOME`
 - use an absolute `ENVLT_HOME` when overriding it to keep keyring targeting consistent
 - `ENVLT_PASSPHRASE` still takes precedence over the keyring when both exist
+- on macOS, Windows, and Linux, `envlt` talks to the native credential store (Keychain Services, Credential Manager, Secret Service) in-process via the `keyring` crate; it never shells out to a CLI tool or passes the passphrase as a command-line argument, so it isn't visible in process listings
+
+### Passphrase handling in memory
+
+- `envlt-cli` reads the vault and bundle passphrases into `Zeroizing<String>`, which is zeroed out as soon as it goes out of scope, rather than left as an ordinary `String` for the lifetime of the process
 
 ### Basic backup strategy
 

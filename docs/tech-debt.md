@@ -8,18 +8,6 @@ Items are grouped by **severity** so the highest-risk problems are visible first
 
 ## High Severity
 
-### macOS passphrase exposed via process arguments
-- **Area**: Auth / Keyring
-- **Files**: `crates/envlt-core/src/auth.rs`
-- **Problem**: `macos_set_password` passes the passphrase to `security add-generic-password` via the `-w` argument. This exposes the secret in process listings, system logs, and shell history.
-- **Next step**: Pass the passphrase through stdin instead of arguments, or use a native keyring API that avoids command-line exposure.
-
-### No file locking for concurrent writers
-- **Area**: Vault / Storage
-- **Files**: `crates/envlt-core/src/vault/store.rs`
-- **Problem**: Two concurrent `envlt` processes can race on `vault.age`. The temporary-file atomic write helps, but there is no cross-process lock.
-- **Next step**: Add a lockfile mechanism under `ENVLT_HOME` with timeout and stale-lock detection.
-
 ### No safe-output regression test matrix
 - **Area**: Safe Output
 - **Files**: `crates/envlt-cli/tests/cli_flow.rs`
@@ -30,29 +18,17 @@ Items are grouped by **severity** so the highest-risk problems are visible first
 
 ## Medium Severity
 
-### Missing memory zeroization for passphrases
-- **Area**: Auth / Keyring
-- **Files**: `crates/envlt-core/src/auth.rs`, `crates/envlt-cli/src/cli.rs`
-- **Problem**: Passphrases are held in standard Rust `String` values. There is no explicit zeroization after use, so the secret may remain in memory longer than necessary.
-- **Next step**: Evaluate `secrecy` and `zeroize` crates for holding and clearing sensitive strings.
-
-### Missing fsync and restrictive permissions
-- **Area**: Vault / Storage
-- **Files**: `crates/envlt-core/src/vault/store.rs`
-- **Problem**: `VaultStore::save` does not fsync the temp file or the directory before/after persisting, and does not enforce `0700` on `ENVLT_HOME` or `0600` on `vault.age`.
-- **Next step**: Add fsync calls and permission setting on Unix platforms.
+### Missing memory zeroization inside envlt-core
+- **Area**: Auth / Keyring / Crypto
+- **Files**: `crates/envlt-core/src/auth.rs`, `crates/envlt-core/src/vault/crypto.rs`, `crates/envlt-core/src/bundle/format.rs`
+- **Problem**: `crates/envlt-cli/src/cli.rs` now reads passphrases into `Zeroizing<String>` at the point of entry (env var, keyring, or prompt), so the copy the user types is cleared on drop. But `envlt-core`'s public API still takes `&str` and passes it through to `String`-based buffers internally (decrypted vault plaintext, scrypt output, keyring round-trip values), none of which are zeroized. This is a bigger surface than the CLI entry point and would mean changing `envlt-core`'s public signatures.
+- **Next step**: Introduce `Zeroizing`/`secrecy` types through `VaultStore::load`/`save`, `crypto::encrypt`/`decrypt`, and `auth.rs`'s keyring round-trip, accepting the API break.
 
 ### Link resolution does not walk parent directories
 - **Area**: Project Link
 - **Files**: `crates/envlt-core/src/link.rs`, `crates/envlt-core/src/app/service.rs`
 - **Problem**: `.envlt-link` is only checked in the current directory. Developers running commands from subdirectories must specify `--project` explicitly.
 - **Next step**: Walk parent directories to find `.envlt-link`, similar to `.git` resolution.
-
-### KDF parameters not stored in bundle header
-- **Area**: Bundle
-- **Files**: `crates/envlt-core/src/bundle/format.rs`
-- **Problem**: `.evlt` bundles rely on `scrypt::Params::recommended()` at decode time. If the recommended parameters change in a future Rust version, old bundles may not decrypt.
-- **Next step**: Serialize KDF parameters into `BundleHeader`.
 
 ### No migration subsystem
 - **Area**: Vault Format
@@ -63,12 +39,6 @@ Items are grouped by **severity** so the highest-risk problems are visible first
 ---
 
 ## Low Severity
-
-### Documentation drift around keyring support
-- **Area**: Auth / Keyring
-- **Files**: `docs/architecture.md`
-- **Problem**: `architecture.md` states "Keychain integration" as not yet implemented, but macOS and cross-platform keyring support already exist in `auth.rs`.
-- **Next step**: Update `architecture.md` and `docs/security.md` to reflect the implemented keyring flow, precedence order, and scoping by `ENVLT_HOME`.
 
 ### Auth error handling is silent on keyring failure
 - **Area**: Auth / Keyring
@@ -87,9 +57,3 @@ Items are grouped by **severity** so the highest-risk problems are visible first
 - **Files**: `crates/envlt-cli/src/commands/import.rs`
 - **Problem**: Users cannot preview bundle contents or validate a bundle without importing it.
 - **Next step**: Add `import --dry-run` and a bundle metadata inspection path.
-
-### architecture.md is out of date on implemented features
-- **Area**: Documentation
-- **Files**: `docs/architecture.md`
-- **Problem**: Lists keyring and migration as not implemented, but keyring exists.
-- **Next step**: Audit `architecture.md` against the current codebase and update the implemented vs not-yet-implemented sections.

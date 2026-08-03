@@ -93,10 +93,12 @@ Each `Project` maintains an `activity_log` (`Vec<ActivityEvent>`) that records v
 
 ## Implemented persistence guarantees
 
-- encrypted vault file
+- encrypted vault file, restricted to `0700`/`0600` on Unix
 - basic version validation
-- atomic write path through a temporary file
+- atomic write path through a temporary file, fsynced before rename
 - automatic backup copy before overwrite
+- cross-process advisory lock (`VaultStore::lock`) around read-modify-write sequences
+- optional system keychain storage of the vault passphrase (macOS Keychain, Windows Credential Manager, Linux Secret Service via `keyring`), scoped per `ENVLT_HOME`
 
 ## Implemented CLI-to-core split
 
@@ -126,5 +128,4 @@ Responsibilities:
 - cloud provider abstraction
 - merge engine for external vaults
 - migration subsystem beyond current version validation
-- Keychain integration
 - GUI crate

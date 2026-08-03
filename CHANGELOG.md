@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed a panic in `Project::push_activity_event` when `ENVLT_HISTORY_LIMIT=0`
+- `VaultStore` now restricts `ENVLT_HOME` to `0700` and `vault.age`/`vault.age.bak` to `0600` on Unix, and `fsync`s the vault file and directory on save
+- Added a cross-process advisory lock (`VaultStore::lock`, backed by `fs4`) so two concurrent `envlt` processes can no longer silently overwrite each other's vault changes; configurable via `ENVLT_LOCK_TIMEOUT_MS` (default 5s)
+- `.evlt` bundles now record the scrypt `log_n`/`r`/`p` used to derive the encryption key in `BundleHeader`, instead of always re-deriving with `Params::recommended()` at decode time; bundles created before this change keep decrypting via a documented legacy default (log_n=17, r=8, p=1)
+- `envlt-cli` now reads vault and bundle passphrases into `Zeroizing<String>` (via the new `zeroize` dependency), so the copy typed by the user or read from an env var is cleared from memory as soon as it goes out of scope, instead of lingering as a plain `String` for the rest of the process
+- Upgraded `keyring` from `3.6` (no backend features enabled, so it silently fell back to keyring's in-memory mock store on Linux and Windows -- `envlt auth save` did not actually persist a passphrase on those platforms) to `4.1` with its default native backends (macOS Keychain, Windows Credential Manager, Linux Secret Service) enabled for all three platforms
+- Removed the macOS-specific shell-out to `security add-generic-password`/`find-generic-password`/`delete-generic-password` in `crates/envlt-core/src/auth.rs`, which passed the passphrase via the `-w` command-line argument (visible in process listings). macOS now goes through the same in-process `keyring::Entry` API as Linux and Windows, backed natively by Keychain Services
+
 ## [0.3.0] - 2026-05-02
 
 ### Added

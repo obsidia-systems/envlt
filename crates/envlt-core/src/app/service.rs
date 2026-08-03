@@ -170,6 +170,7 @@ impl AppService {
 
     /// fn init_vault(&self, passphrase.
     pub fn init_vault(&self, passphrase: &str) -> Result<()> {
+        let _lock = self.store.lock()?;
         self.store.initialize(passphrase)
     }
 
@@ -221,6 +222,7 @@ impl AppService {
         project_path: Option<PathBuf>,
         passphrase: &str,
     ) -> Result<()> {
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -279,6 +281,7 @@ impl AppService {
             })
             .collect::<Result<BTreeMap<_, _>>>()?;
 
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -323,6 +326,7 @@ impl AppService {
         current_dir: Option<&Path>,
         passphrase: &str,
     ) -> Result<RemoveProjectResult> {
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -445,6 +449,7 @@ impl AppService {
         overwrite_existing: bool,
     ) -> Result<String> {
         let mut project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(vault_passphrase)?;
 
         let project_name = project.name.clone();
@@ -544,6 +549,7 @@ impl AppService {
         var_type: Option<VarType>,
         passphrase: &str,
     ) -> Result<()> {
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -617,6 +623,7 @@ impl AppService {
 
     /// fn unset_variable(&self, project_name.
     pub fn unset_variable(&self, project_name: &str, key: &str, passphrase: &str) -> Result<()> {
+        let _lock = self.store.lock()?;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
