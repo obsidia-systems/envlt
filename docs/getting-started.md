@@ -205,14 +205,18 @@ Resolution order for vault access is:
 
 ## Automatic project resolution
 
-When a directory contains `.envlt-link`, these commands can resolve the project automatically:
+When the current directory (or one of its parent directories) contains `.envlt-link`, these commands can resolve the project automatically:
 
 - `vars`
 - `diff`
 - `set`
 - `use`
 - `run`
+- `remove`
+- `doctor`
 - interactive parts of `gen`
+
+Resolution walks upward from the current directory the same way `git` finds `.git`, so it works from any subdirectory of a linked project (for example, a `packages/api` folder inside a monorepo). The closest `.envlt-link` wins if more than one exists along the way.
 
 Example `.envlt-link`:
 

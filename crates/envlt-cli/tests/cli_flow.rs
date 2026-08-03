@@ -226,6 +226,50 @@ fn set_and_use_can_resolve_project_from_link() {
 }
 
 #[test]
+fn commands_resolve_project_from_link_in_a_parent_directory() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+    let nested_dir = project_dir.path().join("packages").join("api");
+    let output_path = project_dir.path().join(".env.local");
+
+    fs::write(&env_path, "MODE=dev\n").expect("write env");
+    fs::create_dir_all(&nested_dir).expect("create nested dir");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "nested-linked-project"])
+        .assert()
+        .success();
+
+    // .envlt-link lives at project_dir, but we run from a subdirectory two
+    // levels deep, the way a monorepo package would.
+    cli(&home)
+        .current_dir(&nested_dir)
+        .args(["set", "MODE=prod"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(&nested_dir)
+        .args(["use", "--out", output_path.to_str().expect("utf8 path")])
+        .assert()
+        .success();
+
+    let generated = fs::read_to_string(output_path).expect("generated env");
+    assert!(generated.contains("MODE=prod"));
+
+    cli(&home)
+        .current_dir(&nested_dir)
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains(
+            "points to project 'nested-linked-project'",
+        ));
+}
+
+#[test]
 fn save_creates_backup_file() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
@@ -278,6 +322,34 @@ fn remove_deletes_project_and_clears_matching_link() {
         .assert()
         .success()
         .stdout(predicate::str::contains("remove-project").not());
+}
+
+#[test]
+fn remove_clears_link_found_in_a_parent_directory() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+    let nested_dir = project_dir.path().join("nested");
+
+    fs::write(&env_path, "MODE=dev\n").expect("write env");
+    fs::create_dir_all(&nested_dir).expect("create nested dir");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "nested-remove-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(&nested_dir)
+        .env("ENVLT_REMOVE_CONFIRM", "yes")
+        .args(["remove", "nested-remove-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(".envlt-link cleared"));
+
+    assert!(!project_dir.path().join(".envlt-link").exists());
 }
 
 #[test]

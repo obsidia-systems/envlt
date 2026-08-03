@@ -11,7 +11,7 @@ use crate::{
     env::{parse_env_file, parse_env_str, render_env},
     error::{EnvltError, Result},
     gen::{generate_value, GenType},
-    link::{read_project_link, remove_project_link, write_project_link},
+    link::{find_project_link, remove_project_link, write_project_link},
     vault::{
         infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultStore,
     },
@@ -362,7 +362,8 @@ impl AppService {
             None => env::current_dir()?,
         };
 
-        read_project_link(&current_dir)?
+        find_project_link(&current_dir)?
+            .map(|(_link_dir, project)| project)
             .ok_or(EnvltError::ProjectResolutionFailed { path: current_dir })
     }
 
@@ -1003,14 +1004,14 @@ impl AppService {
             },
         };
 
-        match read_project_link(&current_dir) {
-            Ok(Some(project)) => {
+        match find_project_link(&current_dir) {
+            Ok(Some((link_dir, project))) => {
                 checks.push(DiagnosticCheck {
                     code: "link".to_owned(),
                     severity: DiagnosticSeverity::Ok,
                     detail: format!(
                         ".envlt-link points to project '{project}' in {}",
-                        current_dir.display()
+                        link_dir.display()
                     ),
                 });
 
@@ -1035,7 +1036,10 @@ impl AppService {
             Ok(None) => checks.push(DiagnosticCheck {
                 code: "link".to_owned(),
                 severity: DiagnosticSeverity::Warn,
-                detail: format!("no .envlt-link found in {}", current_dir.display()),
+                detail: format!(
+                    "no .envlt-link found in {} or its parent directories",
+                    current_dir.display()
+                ),
             }),
             Err(error) => checks.push(DiagnosticCheck {
                 code: "link".to_owned(),
@@ -1053,16 +1057,16 @@ impl AppService {
         current_dir: Option<&Path>,
         project: &Project,
     ) -> Result<bool> {
-        let Some(link_root) = current_dir
+        let Some(search_root) = current_dir
             .map(Path::to_path_buf)
             .or_else(|| project.path.clone())
         else {
             return Ok(false);
         };
 
-        match read_project_link(&link_root)? {
-            Some(linked_project) if linked_project == project_name => {
-                remove_project_link(&link_root)
+        match find_project_link(&search_root)? {
+            Some((link_dir, linked_project)) if linked_project == project_name => {
+                remove_project_link(&link_dir)
             }
             _ => Ok(false),
         }

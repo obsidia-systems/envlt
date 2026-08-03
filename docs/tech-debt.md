@@ -16,12 +16,6 @@ No High Severity items are currently open.
 - **Problem**: `crates/envlt-cli/src/cli.rs` now reads passphrases into `Zeroizing<String>` at the point of entry (env var, keyring, or prompt), so the copy the user types is cleared on drop. But `envlt-core`'s public API still takes `&str` and passes it through to `String`-based buffers internally (decrypted vault plaintext, scrypt output, keyring round-trip values), none of which are zeroized. This is a bigger surface than the CLI entry point and would mean changing `envlt-core`'s public signatures.
 - **Next step**: Introduce `Zeroizing`/`secrecy` types through `VaultStore::load`/`save`, `crypto::encrypt`/`decrypt`, and `auth.rs`'s keyring round-trip, accepting the API break.
 
-### Link resolution does not walk parent directories
-- **Area**: Project Link
-- **Files**: `crates/envlt-core/src/link.rs`, `crates/envlt-core/src/app/service.rs`
-- **Problem**: `.envlt-link` is only checked in the current directory. Developers running commands from subdirectories must specify `--project` explicitly.
-- **Next step**: Walk parent directories to find `.envlt-link`, similar to `.git` resolution.
-
 ### No migration subsystem
 - **Area**: Vault Format
 - **Files**: `crates/envlt-core/src/vault/model.rs`, `crates/envlt-core/src/vault/store.rs`

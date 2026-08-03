@@ -12,6 +12,7 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ### Fixed
 
+- `.envlt-link` resolution (`resolve_project_name`, `remove_project`, `doctor`) now walks up through parent directories, similar to `.git` discovery, so commands work from any subdirectory of a linked project (for example, a package folder inside a monorepo) instead of requiring `--project` or an exact match in the current directory
 - Fixed a panic in `Project::push_activity_event` when `ENVLT_HISTORY_LIMIT=0`
 - `VaultStore` now restricts `ENVLT_HOME` to `0700` and `vault.age`/`vault.age.bak` to `0600` on Unix, and `fsync`s the vault file and directory on save
 - Added a cross-process advisory lock (`VaultStore::lock`, backed by `fs4`) so two concurrent `envlt` processes can no longer silently overwrite each other's vault changes; configurable via `ENVLT_LOCK_TIMEOUT_MS` (default 5s)
