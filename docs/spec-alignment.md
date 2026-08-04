@@ -14,7 +14,7 @@ It does **not** yet match the complete product vision from the original project 
 | --- | --- | --- |
 | Phase 1 local vault workflow | Implemented | Includes extra features beyond the initial MVP |
 | Phase 2 export/import bundles | Implemented | Portable `.evlt` bundles are working |
-| Phase 3 variable typing | Implemented for the current milestone | `VarType`, inference, `add --from-example`, `diff`, and `gen` are implemented and usable |
+| Phase 3 variable typing | Implemented for the current milestone | `VarType`, inference, `add --from-example`, `diff`, and `generate` are implemented and usable |
 | Phase 4 cloud sync | Missing | Intentionally deferred |
 | Phase 5 release/distribution | Implemented for current strategy | CI, tagged releases, and Homebrew exist; native Windows and Apple notarization are not current targets |
 | Phase 6 Keychain | Partial | Basic system keyring support exists; the broader auth feature set is still incomplete |
@@ -36,7 +36,7 @@ It does **not** yet match the complete product vision from the original project 
 - `vars`
 - `diff --example`
 - project-to-project `diff`
-- `gen`
+- `generate`
 - `doctor`
 - `auth save`
 - `auth clear`
@@ -75,7 +75,7 @@ This is a reasonable product decision because it improves the installable local-
 
 The original definition described richer long-term experiences for diffing and secret generation. The current implementation now has a stable baseline for packaging:
 
-- `gen` is secure by default when storing values
+- `generate` is secure by default when storing values
 - `diff` is intentionally safe-summary only
 
 What remains in this area is expansion, not baseline completeness:

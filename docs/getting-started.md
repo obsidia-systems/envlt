@@ -72,10 +72,10 @@ cargo run -p envlt-cli -- --help
 | `ENVLT_HOME` | Override the vault home directory |
 | `ENVLT_PASSPHRASE` | Provide the vault passphrase non-interactively |
 | `ENVLT_BUNDLE_PASSPHRASE` | Provide the bundle passphrase non-interactively |
-| `ENVLT_GEN_TYPE` | Drive interactive `gen` selection |
-| `ENVLT_GEN_SAVE` | Answer whether interactive `gen` should store the result |
-| `ENVLT_GEN_SET_KEY` | Set the target key for interactive `gen` storage |
-| `ENVLT_GEN_PROJECT` | Set the target project for interactive `gen` storage |
+| `ENVLT_GENERATE_TYPE` | Drive interactive `generate` selection |
+| `ENVLT_GENERATE_SAVE` | Answer whether interactive `generate` should store the result |
+| `ENVLT_GENERATE_SET_KEY` | Set the target key for interactive `generate` storage |
+| `ENVLT_GENERATE_PROJECT` | Set the target project for interactive `generate` storage |
 | `ENVLT_MAX_VERSIONS` | Override `max_versions` from `config.toml` for this process |
 | `ENVLT_LOCK_TIMEOUT_MS` | Override `lock_timeout_ms` from `config.toml` for this process |
 
@@ -172,8 +172,8 @@ Use this path when you want lower disk exposure and reproducible runtime injecti
 ### Generate and store a secret
 
 ```bash
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
 
 Output policy:
@@ -260,7 +260,7 @@ When the current directory (or one of its parent directories) contains `.envlt-l
 - `run`
 - `remove`
 - `doctor`
-- interactive parts of `gen`
+- interactive parts of `generate`
 
 Resolution walks upward from the current directory the same way `git` finds `.git`, so it works from any subdirectory of a linked project (for example, a `packages/api` folder inside a monorepo). The closest `.envlt-link` wins if more than one exists along the way.
 
@@ -277,7 +277,7 @@ envlt_version = "1.0"
 
 - native Windows packaging is not a current target; use WSL on Windows
 - Cloud sync is not implemented
-- `gen` still lacks all planned presets
+- `generate` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone
 - no `envlt env rename`; recreate the environment and re-set its variables instead
 

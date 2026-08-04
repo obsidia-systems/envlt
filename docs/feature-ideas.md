@@ -85,7 +85,7 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Overlap with tech-debt**: Resolved — the safe-output test matrix now exists.
 - **Dependencies**: None.
 - **Scope** (implemented):
-  - `safe_output_never_leaks_a_known_secret_across_commands_and_formats` plants one known secret value and asserts it never appears in stdout/stderr for `vars`, `diff` (both modes), `doctor --decrypt`, `history` (project and variable level), `gen --set`, `export`, `import`, and representative error paths, across `table`, `raw`, and `json` output.
+  - `safe_output_never_leaks_a_known_secret_across_commands_and_formats` plants one known secret value and asserts it never appears in stdout/stderr for `vars`, `diff` (both modes), `doctor --decrypt`, `history` (project and variable level), `generate --set`, `export`, `import`, and representative error paths, across `table`, `raw`, and `json` output.
 - **Why**: Safe output is a core promise of a secret-management tool.
 
 ### 5. Migration Infrastructure — Done
@@ -131,12 +131,12 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Scope** (implemented):
   - `Environment` is now an explicit domain concept under `Project` (`Project.environments: BTreeMap<String, Environment>`); vault format bumped to v3, with `migrate_v2_to_v3` moving pre-existing projects' variables into a `local` environment automatically.
   - Variables are fully duplicated per environment, with no inheritance -- the "shared project-level variables" alternative considered below was deferred, same as originally planned.
-  - `--env <NAME>` added to `vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `gen`, and `export`; `diff` gets both `--env`/`--other-env`. Resolution: explicit `--env` → `.envlt-link`'s `environment` field → `local`.
+  - `--env <NAME>` added to `vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `generate`, and `export`; `diff` gets both `--env`/`--other-env`. Resolution: explicit `--env` → `.envlt-link`'s `environment` field → `local`.
   - `.envlt-link` gained an optional `environment` field, populated by `envlt env switch <name>` (a `kubectl config use-context`-style command, re-runnable any time).
   - New `envlt env list`/`envlt env add <name>`/`envlt env remove <name>`/`envlt env switch <name>` commands, matching the CLI shape sketched below almost exactly. `env add` also takes `--from <other-env>` to seed a new environment with another's current values (a one-time copy, not a link).
   - `.evlt` bundles export exactly **one** environment (not the whole project), flattened to current values with no history and no soft-deleted variables, so a leaked or misdirected bundle can't expose more than that one environment's present state. Bundle format bumped to v2; older bundles are rejected with a message pointing at re-exporting.
   - This landed together with full per-variable version history (see item this doc didn't originally scope for `Secret` values -- see `docs/security.md` and `docs/threat-model.md` for that trade-off): `Project.activity_log` is gone, and `envlt history` is reconstructed on demand from each variable's version list instead.
-  - A semantic review of the whole CLI surface (naming, missing operations) landed alongside this: `envlt use` was renamed to `envlt pull` (it didn't communicate "writes a file to disk", and clashed in spirit with the `env <verb>` naming once that group existed), and a new `envlt get <key>` command was added for scripting -- it prints one variable's value unmasked, since asking for a specific key by name is already an intentional reveal, the way `gen --show` is.
+  - A semantic review of the whole CLI surface (naming, missing operations) landed alongside this: `envlt use` was renamed to `envlt pull` (it didn't communicate "writes a file to disk", and clashed in spirit with the `env <verb>` naming once that group existed), and a new `envlt get <key>` command was added for scripting -- it prints one variable's value unmasked, since asking for a specific key by name is already an intentional reveal, the way `generate --show` is.
   - Recommended CLI shape (as implemented):
     ```bash
     envlt env list --project api-payments

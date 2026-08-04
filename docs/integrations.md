@@ -140,7 +140,7 @@ Avoid asking an agent to run commands that reveal or create plaintext secrets un
 
 ```bash
 envlt pull
-envlt gen --show
+envlt generate --show
 envlt run -- printenv
 ```
 

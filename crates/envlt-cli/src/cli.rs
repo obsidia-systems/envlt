@@ -146,8 +146,8 @@ pub fn read_example_value(key: &str, var_type: VarType) -> Result<String> {
     }
 }
 
-pub fn read_gen_type(default: &str) -> Result<String> {
-    let env_key = "ENVLT_GEN_TYPE";
+pub fn read_generate_type(default: &str) -> Result<String> {
+    let env_key = "ENVLT_GENERATE_TYPE";
     let supported = "jwt-secret, uuid, api-key, token, password";
     let value = read_prompt_line(
         Some(env_key),
@@ -160,17 +160,17 @@ pub fn read_gen_type(default: &str) -> Result<String> {
     }
 }
 
-pub fn read_gen_save_choice() -> Result<bool> {
-    let value = read_prompt_line(Some("ENVLT_GEN_SAVE"), "Save to vault? [y/N]: ")?;
+pub fn read_generate_save_choice() -> Result<bool> {
+    let value = read_prompt_line(Some("ENVLT_GENERATE_SAVE"), "Save to vault? [y/N]: ")?;
     Ok(matches!(
         value.to_ascii_lowercase().as_str(),
         "y" | "yes" | "true" | "1"
     ))
 }
 
-pub fn read_gen_set_key() -> Result<String> {
+pub fn read_generate_set_key() -> Result<String> {
     let value = read_prompt_line(
-        Some("ENVLT_GEN_SET_KEY"),
+        Some("ENVLT_GENERATE_SET_KEY"),
         "Variable key to store generated value: ",
     )?;
     if value.is_empty() {
@@ -180,9 +180,9 @@ pub fn read_gen_set_key() -> Result<String> {
     }
 }
 
-pub fn read_gen_project() -> Result<Option<String>> {
+pub fn read_generate_project() -> Result<Option<String>> {
     let value = read_prompt_line(
-        Some("ENVLT_GEN_PROJECT"),
+        Some("ENVLT_GENERATE_PROJECT"),
         "Project name (leave empty to use .envlt-link): ",
     )?;
     if value.is_empty() {

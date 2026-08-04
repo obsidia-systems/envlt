@@ -1258,11 +1258,11 @@ fn check_fails_when_variables_are_missing() {
 }
 
 #[test]
-fn gen_list_types_shows_supported_types() {
+fn generate_list_types_shows_supported_types() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["gen", "--list-types"])
+        .args(["generate", "--list-types"])
         .assert()
         .success()
         .stdout(predicate::str::contains("jwt-secret"))
@@ -1273,11 +1273,11 @@ fn gen_list_types_shows_supported_types() {
 }
 
 #[test]
-fn gen_list_types_supports_json_output() {
+fn generate_list_types_supports_json_output() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["gen", "--list-types", "--format", "json"])
+        .args(["generate", "--list-types", "--format", "json"])
         .assert()
         .success()
         .stdout(predicate::function(|output: &str| {
@@ -1296,7 +1296,7 @@ fn gen_list_types_supports_json_output() {
 }
 
 #[test]
-fn gen_can_store_value_in_project() {
+fn generate_can_store_value_in_project() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1312,7 +1312,7 @@ fn gen_can_store_value_in_project() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--type",
             "jwt-secret",
             "--set",
@@ -1332,11 +1332,11 @@ fn gen_can_store_value_in_project() {
 }
 
 #[test]
-fn gen_supports_custom_hex_length() {
+fn generate_supports_custom_hex_length() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["gen", "--len", "64", "--hex"])
+        .args(["generate", "--len", "64", "--hex"])
         .assert()
         .success()
         .stdout(predicate::function(|output: &str| {
@@ -1346,7 +1346,7 @@ fn gen_supports_custom_hex_length() {
 }
 
 #[test]
-fn gen_supports_custom_symbols_length_and_store() {
+fn generate_supports_custom_symbols_length_and_store() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1362,7 +1362,7 @@ fn gen_supports_custom_symbols_length_and_store() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--len",
             "32",
             "--symbols",
@@ -1383,11 +1383,11 @@ fn gen_supports_custom_symbols_length_and_store() {
 }
 
 #[test]
-fn gen_password_preset_outputs_four_words() {
+fn generate_password_preset_outputs_four_words() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["gen", "--type", "password"])
+        .args(["generate", "--type", "password"])
         .assert()
         .success()
         .stdout(predicate::function(|output: &str| {
@@ -1397,11 +1397,11 @@ fn gen_password_preset_outputs_four_words() {
 }
 
 #[test]
-fn gen_without_type_uses_interactive_env_override() {
+fn generate_without_type_uses_interactive_env_override() {
     let home = TempDir::new().expect("tempdir");
     let mut cmd = cli(&home);
-    cmd.env("ENVLT_GEN_TYPE", "password");
-    cmd.arg("gen")
+    cmd.env("ENVLT_GENERATE_TYPE", "password");
+    cmd.arg("generate")
         .assert()
         .success()
         .stdout(predicate::function(|output: &str| {
@@ -1411,7 +1411,7 @@ fn gen_without_type_uses_interactive_env_override() {
 }
 
 #[test]
-fn gen_interactive_mode_can_store_value_via_env_overrides() {
+fn generate_interactive_mode_can_store_value_via_env_overrides() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1427,10 +1427,10 @@ fn gen_interactive_mode_can_store_value_via_env_overrides() {
 
     let mut cmd = cli(&home);
     cmd.current_dir(project_dir.path());
-    cmd.env("ENVLT_GEN_TYPE", "jwt-secret");
-    cmd.env("ENVLT_GEN_SAVE", "yes");
-    cmd.env("ENVLT_GEN_SET_KEY", "JWT_SECRET");
-    cmd.arg("gen")
+    cmd.env("ENVLT_GENERATE_TYPE", "jwt-secret");
+    cmd.env("ENVLT_GENERATE_SAVE", "yes");
+    cmd.env("ENVLT_GENERATE_SET_KEY", "JWT_SECRET");
+    cmd.arg("generate")
         .assert()
         .success()
         .stdout(predicate::str::contains("Value generated and saved."));
@@ -1449,7 +1449,7 @@ fn gen_interactive_mode_can_store_value_via_env_overrides() {
 }
 
 #[test]
-fn gen_set_does_not_print_value_by_default() {
+fn generate_set_does_not_print_value_by_default() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1465,7 +1465,7 @@ fn gen_set_does_not_print_value_by_default() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--type",
             "jwt-secret",
             "--set",
@@ -1479,7 +1479,7 @@ fn gen_set_does_not_print_value_by_default() {
 }
 
 #[test]
-fn gen_set_show_prints_generated_value() {
+fn generate_set_show_prints_generated_value() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1495,7 +1495,7 @@ fn gen_set_show_prints_generated_value() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--type",
             "jwt-secret",
             "--set",
@@ -1513,7 +1513,7 @@ fn gen_set_show_prints_generated_value() {
 }
 
 #[test]
-fn gen_set_silent_prints_nothing() {
+fn generate_set_silent_prints_nothing() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1529,7 +1529,7 @@ fn gen_set_silent_prints_nothing() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--type",
             "jwt-secret",
             "--set",
@@ -1544,18 +1544,18 @@ fn gen_set_silent_prints_nothing() {
 }
 
 #[test]
-fn gen_show_and_silent_conflict() {
+fn generate_show_and_silent_conflict() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["gen", "--type", "token", "--show", "--silent"])
+        .args(["generate", "--type", "token", "--show", "--silent"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("cannot be used with"));
 }
 
 #[test]
-fn gen_custom_set_does_not_print_value_by_default() {
+fn generate_custom_set_does_not_print_value_by_default() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -1571,7 +1571,7 @@ fn gen_custom_set_does_not_print_value_by_default() {
 
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--len",
             "32",
             "--symbols",
@@ -1922,7 +1922,7 @@ fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
     // it is replacing, even though it prints a success message.
     cli(&home)
         .args([
-            "gen",
+            "generate",
             "--type",
             "token",
             "--set",

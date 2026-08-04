@@ -80,7 +80,7 @@ Keep domain behavior in `envlt-core`. Keep `envlt-cli` focused on parsing, promp
 - Never add tests, examples, logs, fixtures, or docs containing real credentials.
 - Use fake obvious values in examples, such as `example-secret`, `sk_test_example`, or `postgres://user:pass@localhost/db`.
 - Preserve masking behavior for `Secret` values in `vars`, `diff`, `doctor`, and related outputs.
-- Prefer `envlt run` guidance over `envlt use` when plaintext `.env` files are not required.
+- Prefer `envlt run` guidance over `envlt pull` when plaintext `.env` files are not required.
 - Treat materialized `.env` files as plaintext artifacts.
 - Be careful with process arguments, environment variables, panic messages, and command output when passphrases or secrets are involved.
 - If changing auth/keyring behavior, verify `ENVLT_PASSPHRASE` precedence and keyring target scoping by `ENVLT_HOME`.

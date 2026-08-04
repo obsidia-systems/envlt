@@ -5,14 +5,14 @@ use envlt_core::{generate_custom_value, supported_gen_types, AppService, Charset
 use serde_json::to_string_pretty;
 
 use crate::cli::{
-    print_success, read_gen_project, read_gen_save_choice, read_gen_set_key, read_gen_type,
-    read_passphrase, resolve_environment,
+    print_success, read_generate_project, read_generate_save_choice, read_generate_set_key,
+    read_generate_type, read_passphrase, resolve_environment,
 };
 use crate::output::{render_raw_rows, render_table, OutputFormat};
 
 const DEFAULT_GEN_TYPE: &str = "token";
 
-pub struct GenOptions<'a> {
+pub struct GenerateOptions<'a> {
     pub gen_type: Option<&'a str>,
     pub list_types: bool,
     pub len: Option<usize>,
@@ -26,7 +26,7 @@ pub struct GenOptions<'a> {
     pub list_format: Option<OutputFormat>,
 }
 
-impl GenOptions<'_> {
+impl GenerateOptions<'_> {
     fn custom_mode_enabled(&self) -> bool {
         self.len.is_some()
     }
@@ -34,7 +34,7 @@ impl GenOptions<'_> {
     fn resolve_gen_type(&self) -> Result<String> {
         match self.gen_type {
             Some(gen_type) => Ok(gen_type.to_owned()),
-            None => read_gen_type(DEFAULT_GEN_TYPE),
+            None => read_generate_type(DEFAULT_GEN_TYPE),
         }
     }
 
@@ -43,7 +43,7 @@ impl GenOptions<'_> {
     }
 }
 
-pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode> {
+pub fn run_generate(service: &AppService, options: GenerateOptions<'_>) -> Result<ExitCode> {
     if options.list_types {
         let supported = supported_gen_types()
             .iter()
@@ -140,7 +140,7 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
 
 fn resolve_save_target(
     service: &AppService,
-    options: &GenOptions<'_>,
+    options: &GenerateOptions<'_>,
 ) -> Result<Option<(String, String)>> {
     if let Some(key) = options.set_key {
         let project = service.resolve_project_name(options.project.as_deref(), None)?;
@@ -151,15 +151,15 @@ fn resolve_save_target(
         return Ok(None);
     }
 
-    if !read_gen_save_choice()? {
+    if !read_generate_save_choice()? {
         return Ok(None);
     }
 
-    let key = read_gen_set_key()?;
+    let key = read_generate_set_key()?;
     let project = match service.resolve_project_name(None, None) {
         Ok(project) => project,
         Err(_) => {
-            let interactive_project = read_gen_project()?;
+            let interactive_project = read_generate_project()?;
             service.resolve_project_name(interactive_project.as_deref(), None)?
         }
     };

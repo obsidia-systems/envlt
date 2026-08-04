@@ -1,13 +1,12 @@
 # CLI Reference
 
-This document describes the current CLI surface.
+This document describes the current CLI surface. It mirrors the terminal, not the other way around: every command below also carries its `about`/examples directly in `envlt <command> --help`, generated from the same source, so the two can't drift apart. `envlt --help` on its own shows a quick-start block; `envlt man --out <dir>` generates man pages from the same definitions.
 
 ## Command summary
 
 | Command | Description |
 | --- | --- |
 | `envlt init` | Initialize the encrypted vault |
-| `envlt auth` | Manage stored vault authentication |
 | `envlt add <project>` | Import `.env` or `.env.example` content |
 | `envlt list` | List stored projects |
 | `envlt remove <project>` | Remove a stored project |
@@ -17,18 +16,20 @@ This document describes the current CLI surface.
 | `envlt env switch <name>` | Pin the default environment for the current directory |
 | `envlt vars` | Show variables and types |
 | `envlt get <key>` | Print a single variable's raw value, for scripting |
-| `envlt history` | Show the activity log for a project or variable |
-| `envlt check` | Verify a project against `.env.example` |
-| `envlt diff` | Compare against `.env.example` or another project |
-| `envlt doctor` | Diagnose the local vault and link state |
-| `envlt completions` | Generate shell completion scripts |
 | `envlt set` | Create or update a variable |
 | `envlt unset` | Delete a variable |
-| `envlt pull` | Write a `.env` file from the vault |
 | `envlt run` | Run a child process with injected variables |
-| `envlt gen` | Generate secure values |
+| `envlt pull` | Write a `.env` file from the vault |
+| `envlt generate` | Generate secure values |
 | `envlt export` | Export a project to `.evlt` |
 | `envlt import` | Import a `.evlt` bundle |
+| `envlt check` | Verify a project against `.env.example` |
+| `envlt diff` | Compare against `.env.example` or another project/environment |
+| `envlt history` | Show the activity log for a project or variable |
+| `envlt doctor` | Diagnose the local vault and link state |
+| `envlt completions` | Generate shell completion scripts |
+| `envlt man` | Generate man pages |
+| `envlt auth` | Manage stored vault authentication |
 
 ## Exit behavior baseline
 
@@ -44,7 +45,7 @@ For setup and recovery paths, see [Troubleshooting](troubleshooting.md).
 
 Every project has at least one environment (`local`, seeded automatically by `add`/`init`); `envlt env add <name>` creates more, e.g. `staging` or `prod`. Variables are fully duplicated per environment -- there is no inheritance between them, so a variable set in `local` has no effect on `staging` until you explicitly set it there too. A project must always keep at least one environment; `envlt env remove` refuses to delete the last one.
 
-`vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `gen`, and `export` all accept `--env <NAME>`, resolved in this order:
+`vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `generate`, and `export` all accept `--env <NAME>`, resolved in this order:
 
 1. the explicit `--env` flag
 2. the environment recorded on the nearest `.envlt-link`, set with `envlt env switch <name>`
@@ -250,7 +251,7 @@ export DB_PASSWORD=$(envlt get DB_PASSWORD --project api-payments)
 
 Behavior:
 
-- always reveals the value, including `Secret` ones -- unlike `vars`, which always masks `Secret` in every format, asking for a specific key by name is treated as an intentional reveal, the same way `gen --show` works
+- always reveals the value, including `Secret` ones -- unlike `vars`, which always masks `Secret` in every format, asking for a specific key by name is treated as an intentional reveal, the same way `generate --show` works
 - fails if the key doesn't exist or has been unset in that environment
 - prints exactly the value and nothing else, so it's safe to capture with `$(...)`
 
@@ -438,23 +439,23 @@ envlt run --project api-payments --env staging -- node server.js
 envlt run -- npm run dev
 ```
 
-### `envlt gen`
+### `envlt generate`
 
 Generate secure values.
 
 ```bash
-envlt gen --list-types
-envlt gen --list-types --format raw
-envlt gen --list-types --format json
-envlt gen
-envlt gen --type jwt-secret
-envlt gen --type password
-envlt gen --len 64 --hex
-envlt gen --len 32 --symbols
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --env staging
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --silent
+envlt generate --list-types
+envlt generate --list-types --format raw
+envlt generate --list-types --format json
+envlt generate
+envlt generate --type jwt-secret
+envlt generate --type password
+envlt generate --len 64 --hex
+envlt generate --len 32 --symbols
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --env staging
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --show
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --silent
 ```
 
 `--env` selects which environment `--set` stores the generated value in; it has no effect without `--set`.
@@ -528,3 +529,18 @@ envlt completions bash > /usr/local/etc/bash_completion.d/envlt
 envlt completions zsh > /usr/local/share/zsh/site-functions/_envlt
 envlt completions fish > ~/.config/fish/completions/envlt.fish
 ```
+
+### `envlt man [--out <dir>]`
+
+Generate roff-format man pages for `envlt` and every subcommand.
+
+```bash
+envlt man --out ./man
+envlt man --out /usr/local/share/man/man1
+```
+
+Behavior:
+
+- writes one page per command (`envlt.1`, `envlt-init.1`, `envlt-add.1`, `envlt-env-add.1`, ...) into the target directory, creating it if needed
+- generated from the exact same command definitions used to build `--help`, so the two can never drift apart
+- `--out` defaults to `./man`

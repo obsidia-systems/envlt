@@ -63,7 +63,7 @@ nano .env
 After:
 
 ```bash
-envlt use api-payments
+envlt pull api-payments
 envlt run node server.js
 ```
 
@@ -72,7 +72,7 @@ envlt run node server.js
 - Local-first: no account, no remote service, no required network dependency
 - Safer by default: encrypted vault, masked secret output, secure generator behavior
 - Portable: share project snapshots with `.evlt` bundles
-- Practical: use `run`, `use`, `diff`, `vars`, `gen`, `doctor`, and `auth` from a single CLI
+- Practical: use `run`, `pull`, `diff`, `vars`, `get`, `generate`, `doctor`, and `auth` from a single CLI
 - Built for the AI-agent era: `envlt run` injects variables into a process without ever writing a `.env` file, and `envlt doctor` warns if one is left lying around next to a linked project
 
 ## Quick Comparison
@@ -82,7 +82,7 @@ envlt run node server.js
 | Local secret storage | plaintext file on disk | encrypted local vault |
 | Team handoff | copy/paste or shared files | encrypted `.evlt` bundle |
 | Run app locally | depends on current `.env` state | deterministic with `envlt run` |
-| Regenerate files | manual edits and drift risk | `envlt use` from vault state |
+| Regenerate files | manual edits and drift risk | `envlt pull` from vault state |
 | Offline usage | yes | yes |
 
 ## Status
@@ -126,7 +126,7 @@ Then move into common tasks:
 
 ```bash
 envlt vars --project api-payments
-envlt use --project api-payments
+envlt pull --project api-payments
 envlt set --project api-payments PORT=4000
 envlt export api-payments --out bundle.evlt
 envlt import bundle.evlt
@@ -136,8 +136,8 @@ envlt doctor --decrypt
 Secret generation examples:
 
 ```bash
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments
-envlt gen --type jwt-secret --set JWT_SECRET --project api-payments --show
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments
+envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
 
 If the current directory contains `.envlt-link`, these commands can resolve the project automatically:
@@ -145,9 +145,9 @@ If the current directory contains `.envlt-link`, these commands can resolve the 
 - `vars`
 - `diff`
 - `set`
-- `use`
+- `pull`
 - `run`
-- interactive `gen` save flow
+- interactive `generate` save flow
 
 ## Installation
 
@@ -195,9 +195,9 @@ flowchart LR
     A[.env or .env.example] --> B[envlt add]
     B --> C[Encrypted vault.age]
     C --> D[envlt vars]
-    C --> E[envlt use]
+    C --> E[envlt pull]
     C --> F[envlt run]
-    C --> G[envlt gen --set]
+    C --> G[envlt generate --set]
     C --> H[envlt export]
     H --> I[Encrypted .evlt bundle]
     I --> J[envlt import]
@@ -209,21 +209,26 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `envlt init` | Create the encrypted local vault |
-| `envlt auth` | Manage stored vault authentication |
 | `envlt add` | Import variables from `.env` or `.env.example` |
 | `envlt list` | List stored projects |
 | `envlt remove` | Remove a stored project |
+| `envlt env` | List, add, remove, or switch a project's environments |
 | `envlt vars` | Show project variables and types |
-| `envlt check` | Verify a project against `.env.example` |
-| `envlt diff` | Compare against `.env.example` or another project |
-| `envlt completions` | Generate shell completion scripts |
+| `envlt get` | Print a single variable's raw value, for scripting |
 | `envlt set` | Create or update variables |
-| `envlt use` | Materialize a `.env` file |
+| `envlt unset` | Delete a variable |
 | `envlt run` | Execute a child process with injected variables |
-| `envlt gen` | Generate secure values and optionally store them |
-| `envlt export` | Export a project to `.evlt` |
+| `envlt pull` | Materialize a `.env` file |
+| `envlt generate` | Generate secure values and optionally store them |
+| `envlt export` | Export a project environment to `.evlt` |
 | `envlt import` | Import a `.evlt` bundle |
+| `envlt check` | Verify a project against `.env.example` |
+| `envlt diff` | Compare against `.env.example` or another project/environment |
+| `envlt history` | Show the activity log for a project or variable |
 | `envlt doctor` | Diagnose vault and `.envlt-link` state |
+| `envlt completions` | Generate shell completion scripts |
+| `envlt man` | Generate man pages |
+| `envlt auth` | Manage stored vault authentication |
 
 ## Security Notes
 
@@ -234,7 +239,7 @@ flowchart LR
 - bundles use a passphrase independent from the main vault passphrase
 - `vars` masks `Secret` values
 - `diff` reports categorized changes without printing values
-- `gen --set` does not reveal generated values unless `--show` is explicitly used
+- `generate --set` does not reveal generated values unless `--show` is explicitly used
 
 For details, see [Security](docs/security.md).
 
