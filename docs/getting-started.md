@@ -144,8 +144,8 @@ envlt add api-payments --from-example .env.example
 ### Materialize a `.env`
 
 ```bash
-envlt use --project api-payments
-envlt use --project api-payments --out .env.local
+envlt pull --project api-payments
+envlt pull --project api-payments --out .env.local
 ```
 
 Use this path when tools require a file on disk.
@@ -163,7 +163,8 @@ Use this path when you want lower disk exposure and reproducible runtime injecti
 | If you want to... | Use this command | Why |
 | --- | --- | --- |
 | Start a process with vault variables only in memory | `envlt run --project <name> -- <cmd>` | Avoid writing `.env` files |
-| Create a local env file for tools that require one | `envlt use --project <name> [--out <path>]` | Controlled materialization from encrypted state |
+| Create a local env file for tools that require one | `envlt pull --project <name> [--out <path>]` | Controlled materialization from encrypted state |
+| Grab one variable's value for a script | `envlt get <key> --project <name>` | No need to write or parse a whole file |
 | Share project variables with a teammate | `envlt export <name> --out bundle.evlt` | Portable encrypted handoff |
 | Bring a shared project snapshot into your machine | `envlt import bundle.evlt` | Fast local bootstrap |
 | Check local health and links | `envlt doctor [--decrypt]` | Detect setup and decryption issues early |
@@ -193,10 +194,18 @@ envlt vars --project api-payments --env staging
 envlt run --project api-payments --env staging -- node server.js
 ```
 
-Variables are fully duplicated per environment: setting `DATABASE_URL` in `staging` has no effect on `local`, and `envlt vars` without `--env` always shows `local`. If you work in `staging` from a given directory most of the time, pin it once instead of typing `--env staging` on every command:
+Variables are fully duplicated per environment: setting `DATABASE_URL` in `staging` has no effect on `local`, and `envlt vars` without `--env` always shows `local`. If you'd rather start `staging` from a copy of `local`'s current values instead of an empty environment, seed it:
 
 ```bash
-envlt env use staging --project api-payments
+envlt env add staging --project api-payments --from local
+```
+
+This is a one-time copy, not a link -- `staging` and `local` diverge independently from there.
+
+If you work in `staging` from a given directory most of the time, pin it once instead of typing `--env staging` on every command:
+
+```bash
+envlt env switch staging --project api-payments
 envlt vars --project api-payments   # now shows staging without --env
 ```
 
@@ -244,9 +253,10 @@ Resolution order for vault access is:
 When the current directory (or one of its parent directories) contains `.envlt-link`, these commands can resolve the project automatically:
 
 - `vars`
+- `get`
 - `diff`
 - `set`
-- `use`
+- `pull`
 - `run`
 - `remove`
 - `doctor`
@@ -261,7 +271,7 @@ project = "api-payments"
 envlt_version = "1.0"
 ```
 
-`.envlt-link` also supports an optional `environment` field as a per-directory default for `--env`-aware commands, set with `envlt env use <name>` (see [Environments](#environments) above).
+`.envlt-link` also supports an optional `environment` field as a per-directory default for `--env`-aware commands, set with `envlt env switch <name>` (see [Environments](#environments) above).
 
 ## Current limitations
 

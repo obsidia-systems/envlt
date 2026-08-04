@@ -467,11 +467,17 @@ impl AppService {
             })
     }
 
-    /// Add a new, empty environment to a project.
+    /// Add a new environment to a project, optionally seeded with
+    /// `seed_from`'s current (non-deleted) variable values.
+    ///
+    /// Seeding is a one-time copy, not an ongoing link: each seeded
+    /// variable starts its own independent version history in the new
+    /// environment, exactly as if it had been `set` there by hand.
     pub fn add_environment(
         &self,
         project_name: &str,
         environment_name: &str,
+        seed_from: Option<&str>,
         passphrase: &str,
     ) -> Result<()> {
         let _lock = self.store.lock()?;
@@ -491,10 +497,25 @@ impl AppService {
             });
         }
 
-        project.environments.insert(
-            environment_name.to_owned(),
-            Environment::new(environment_name),
-        );
+        let mut new_environment = Environment::new(environment_name);
+        if let Some(source_name) = seed_from {
+            let source = require_environment(project, project_name, source_name)?;
+            new_environment.variables = source
+                .variables
+                .iter()
+                .filter(|(_, variable)| !variable.is_deleted())
+                .map(|(key, variable)| {
+                    (
+                        key.clone(),
+                        Variable::new_with_type(variable.value().to_owned(), variable.var_type()),
+                    )
+                })
+                .collect();
+        }
+
+        project
+            .environments
+            .insert(environment_name.to_owned(), new_environment);
         project.touch();
         vault.touch();
         self.store.save(&vault, passphrase)
@@ -555,7 +576,7 @@ impl AppService {
     /// Pin `environment_name` as `project_root`'s default environment by
     /// writing it into `.envlt-link`, after confirming the environment
     /// actually exists (so a typo doesn't silently link to nothing).
-    pub fn use_environment(
+    pub fn switch_environment(
         &self,
         project_name: &str,
         environment_name: &str,
@@ -842,6 +863,38 @@ impl AppService {
             passphrase,
         )?;
         Ok(value)
+    }
+
+    /// The current value of a single variable in one environment, revealed
+    /// unmasked -- requesting a specific key by name is treated as an
+    /// intentional reveal, the same way `GenOptions::show` is. Errors if
+    /// the key is missing or has been unset (soft-deleted).
+    pub fn get_variable_value(
+        &self,
+        project_name: &str,
+        environment_name: &str,
+        key: &str,
+        passphrase: &str,
+    ) -> Result<String> {
+        let vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        let environment = require_environment(project, project_name, environment_name)?;
+
+        environment
+            .variables
+            .get(key)
+            .filter(|variable| !variable.is_deleted())
+            .map(|variable| variable.value().to_owned())
+            .ok_or_else(|| EnvltError::VariableNotFound {
+                project: project_name.to_owned(),
+                key: key.to_owned(),
+            })
     }
 
     /// Current (non-deleted) variables in one environment.
@@ -2273,7 +2326,7 @@ mod tests {
             .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
             .expect("add project");
         service
-            .add_environment("test-project", "staging", "passphrase")
+            .add_environment("test-project", "staging", None, "passphrase")
             .expect("add environment");
 
         let environments = service
@@ -2302,7 +2355,139 @@ mod tests {
             .expect("add project");
 
         assert!(service
-            .add_environment("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .add_environment("test-project", DEFAULT_ENVIRONMENT, None, "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn add_environment_can_seed_from_another_environments_current_values() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("unset so it does not carry over deleted");
+        service
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "API_KEY",
+                "abc123",
+                None,
+                "passphrase",
+            )
+            .expect("set");
+
+        service
+            .add_environment(
+                "test-project",
+                "staging",
+                Some(DEFAULT_ENVIRONMENT),
+                "passphrase",
+            )
+            .expect("seed staging from local");
+
+        let staging_variables = service
+            .project_variables("test-project", "staging", "passphrase")
+            .expect("staging variables");
+        assert_eq!(
+            staging_variables.get("API_KEY").map(String::as_str),
+            Some("abc123")
+        );
+        // The deleted PORT variable was not carried over.
+        assert!(!staging_variables.contains_key("PORT"));
+
+        // Seeded values start their own independent history, not a link:
+        // changing it in staging must not affect local.
+        service
+            .set_variable(
+                "test-project",
+                "staging",
+                "API_KEY",
+                "staging-only",
+                None,
+                "passphrase",
+            )
+            .expect("set in staging");
+        let local_variables = service
+            .project_variables("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .expect("local variables");
+        assert_eq!(
+            local_variables.get("API_KEY").map(String::as_str),
+            Some("abc123")
+        );
+    }
+
+    #[test]
+    fn add_environment_rejects_an_unknown_seed_source() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        assert!(service
+            .add_environment("test-project", "staging", Some("ghost"), "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn get_variable_value_returns_the_current_value() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "API_KEY=secret123", None, "passphrase")
+            .expect("add project");
+
+        let value = service
+            .get_variable_value("test-project", DEFAULT_ENVIRONMENT, "API_KEY", "passphrase")
+            .expect("get value");
+        assert_eq!(value, "secret123");
+    }
+
+    #[test]
+    fn get_variable_value_errors_for_a_missing_key() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        assert!(service
+            .get_variable_value("test-project", DEFAULT_ENVIRONMENT, "GHOST", "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn get_variable_value_errors_for_a_deleted_variable() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("unset");
+
+        assert!(service
+            .get_variable_value("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
             .is_err());
     }
 
@@ -2317,7 +2502,7 @@ mod tests {
             .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
             .expect("add project");
         service
-            .add_environment("test-project", "staging", "passphrase")
+            .add_environment("test-project", "staging", None, "passphrase")
             .expect("add environment");
 
         service
@@ -2360,7 +2545,7 @@ mod tests {
             .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
             .expect("add project");
         service
-            .add_environment("test-project", "staging", "passphrase")
+            .add_environment("test-project", "staging", None, "passphrase")
             .expect("add environment");
 
         assert!(service
@@ -2369,7 +2554,7 @@ mod tests {
     }
 
     #[test]
-    fn use_environment_pins_the_environment_in_envlt_link() {
+    fn switch_environment_pins_the_environment_in_envlt_link() {
         let home = TempDir::new().expect("tempdir");
         let project_dir = TempDir::new().expect("tempdir");
         let store = VaultStore::new(home.path().to_path_buf());
@@ -2380,11 +2565,11 @@ mod tests {
             .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
             .expect("add project");
         service
-            .add_environment("test-project", "staging", "passphrase")
+            .add_environment("test-project", "staging", None, "passphrase")
             .expect("add environment");
 
         service
-            .use_environment("test-project", "staging", project_dir.path(), "passphrase")
+            .switch_environment("test-project", "staging", project_dir.path(), "passphrase")
             .expect("use environment");
 
         let link_content =
@@ -2393,7 +2578,7 @@ mod tests {
     }
 
     #[test]
-    fn use_environment_rejects_an_unknown_environment() {
+    fn switch_environment_rejects_an_unknown_environment() {
         let home = TempDir::new().expect("tempdir");
         let project_dir = TempDir::new().expect("tempdir");
         let store = VaultStore::new(home.path().to_path_buf());
@@ -2405,7 +2590,7 @@ mod tests {
             .expect("add project");
 
         assert!(service
-            .use_environment("test-project", "ghost", project_dir.path(), "passphrase")
+            .switch_environment("test-project", "ghost", project_dir.path(), "passphrase")
             .is_err());
         assert!(!project_dir.path().join(".envlt-link").exists());
     }
@@ -2421,7 +2606,7 @@ mod tests {
             .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
             .expect("add project");
         service
-            .add_environment("test-project", "staging", "passphrase")
+            .add_environment("test-project", "staging", None, "passphrase")
             .expect("add environment");
         service
             .set_variable(

@@ -5,7 +5,7 @@ use envlt_core::AppService;
 
 use crate::cli::{print_success, read_passphrase, resolve_environment};
 
-pub fn run_use(
+pub fn run_pull(
     service: &AppService,
     project: &Option<String>,
     env: &Option<String>,

@@ -78,7 +78,7 @@ Either restore/import the project or create a new link by adding the intended pr
 | Situation                                 | Preferred command                           |
 | ----------------------------------------- | ------------------------------------------- |
 | You only need variables in process memory | `envlt run --project <name> -- <cmd>`       |
-| Tooling requires a file on disk           | `envlt use --project <name> [--out <path>]` |
+| Tooling requires a file on disk           | `envlt pull --project <name> [--out <path>]` |
 
 If a process cannot see variables, verify project selection explicitly and retry with `--project`.
 

@@ -79,7 +79,7 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - `doctor` shows the resolved link's directory, and warns if a `.env` file is left next to it (see [Threat Model: AI Coding Assistants and Local Files](../docs/threat-model.md#ai-coding-assistants-and-local-files)).
   - `remove_project` removes the link from wherever it was actually found, not just the current directory.
 - **Not done**: explicit link schema/version validation, and a dedicated link-status command (currently folded into `doctor`).
-- **Why**: Makes `envlt vars`, `envlt run`, `envlt use`, and future UI work naturally inside real repositories.
+- **Why**: Makes `envlt vars`, `envlt run`, `envlt pull`, and future UI work naturally inside real repositories.
 
 ### 4. Safe-Output Regression Tests — Done
 - **Overlap with tech-debt**: Resolved — the safe-output test matrix now exists.
@@ -131,20 +131,23 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Scope** (implemented):
   - `Environment` is now an explicit domain concept under `Project` (`Project.environments: BTreeMap<String, Environment>`); vault format bumped to v3, with `migrate_v2_to_v3` moving pre-existing projects' variables into a `local` environment automatically.
   - Variables are fully duplicated per environment, with no inheritance -- the "shared project-level variables" alternative considered below was deferred, same as originally planned.
-  - `--env <NAME>` added to `vars`, `set`, `unset`, `history`, `check`, `use`, `run`, `gen`, and `export`; `diff` gets both `--env`/`--other-env`. Resolution: explicit `--env` → `.envlt-link`'s `environment` field → `local`.
-  - `.envlt-link` gained an optional `environment` field (schema only for now -- no command writes it yet, deliberately deferred to avoid scope creep in an already-large change).
-  - New `envlt env list`/`envlt env add <name>` commands, matching the CLI shape sketched below almost exactly.
+  - `--env <NAME>` added to `vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `gen`, and `export`; `diff` gets both `--env`/`--other-env`. Resolution: explicit `--env` → `.envlt-link`'s `environment` field → `local`.
+  - `.envlt-link` gained an optional `environment` field, populated by `envlt env switch <name>` (a `kubectl config use-context`-style command, re-runnable any time).
+  - New `envlt env list`/`envlt env add <name>`/`envlt env remove <name>`/`envlt env switch <name>` commands, matching the CLI shape sketched below almost exactly. `env add` also takes `--from <other-env>` to seed a new environment with another's current values (a one-time copy, not a link).
   - `.evlt` bundles export exactly **one** environment (not the whole project), flattened to current values with no history and no soft-deleted variables, so a leaked or misdirected bundle can't expose more than that one environment's present state. Bundle format bumped to v2; older bundles are rejected with a message pointing at re-exporting.
   - This landed together with full per-variable version history (see item this doc didn't originally scope for `Secret` values -- see `docs/security.md` and `docs/threat-model.md` for that trade-off): `Project.activity_log` is gone, and `envlt history` is reconstructed on demand from each variable's version list instead.
+  - A semantic review of the whole CLI surface (naming, missing operations) landed alongside this: `envlt use` was renamed to `envlt pull` (it didn't communicate "writes a file to disk", and clashed in spirit with the `env <verb>` naming once that group existed), and a new `envlt get <key>` command was added for scripting -- it prints one variable's value unmasked, since asking for a specific key by name is already an intentional reveal, the way `gen --show` is.
   - Recommended CLI shape (as implemented):
     ```bash
     envlt env list --project api-payments
     envlt env add staging --project api-payments
-    envlt env use staging --project api-payments
+    envlt env add staging --project api-payments --from local
+    envlt env switch staging --project api-payments
     envlt env remove staging --project api-payments
     envlt vars --project api-payments --env staging
+    envlt get DATABASE_URL --project api-payments --env staging
     envlt set --project api-payments --env staging --secret DATABASE_URL=...
-    envlt use --project api-payments --env staging --out .env
+    envlt pull --project api-payments --env staging --out .env
     envlt run --project api-payments --env staging -- node server.js
     envlt diff --project api-payments --other-env staging
     ```
@@ -153,8 +156,7 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - Every project has a default environment (`local`), seeded automatically by `add`/`init`.
   - Variables are duplicated per environment, not shared with overrides.
   - `.evlt` bundles export exactly one environment, never the whole project.
-- **Deferred**: shared/project-level inherited variables (no demand yet); `envlt env rename` (no demand yet -- recreate + re-set works as a manual substitute).
-- **Update**: the `.envlt-link` environment-writing CLI surface landed too, as `envlt env use <name>` (a `kubectl config use-context`-style command, re-runnable to switch a directory's default at any time) and `envlt env remove <name>` (with the same confirm-by-default/`--yes` pattern as `envlt remove` for projects; blocked from removing a project's last environment).
+- **Deferred**: shared/project-level inherited variables (no demand yet); `envlt env rename` (no demand yet -- `env add --from` covers the "start from a copy" case; a straight rename would still need recreate + re-set).
 - **Why**: Most teams already think in environments (`dev`, `staging`, `prod`).
 
 ### 9. Configuration File — Done

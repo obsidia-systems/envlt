@@ -12,10 +12,11 @@ This document describes the current CLI surface.
 | `envlt list` | List stored projects |
 | `envlt remove <project>` | Remove a stored project |
 | `envlt env list` | List a project's environments |
-| `envlt env add <name>` | Add a new, empty environment to a project |
+| `envlt env add <name>` | Add a new environment, optionally seeded from another |
 | `envlt env remove <name>` | Remove an environment and all its variables |
-| `envlt env use <name>` | Pin the default environment for the current directory |
+| `envlt env switch <name>` | Pin the default environment for the current directory |
 | `envlt vars` | Show variables and types |
+| `envlt get <key>` | Print a single variable's raw value, for scripting |
 | `envlt history` | Show the activity log for a project or variable |
 | `envlt check` | Verify a project against `.env.example` |
 | `envlt diff` | Compare against `.env.example` or another project |
@@ -23,7 +24,7 @@ This document describes the current CLI surface.
 | `envlt completions` | Generate shell completion scripts |
 | `envlt set` | Create or update a variable |
 | `envlt unset` | Delete a variable |
-| `envlt use` | Write a `.env` file from the vault |
+| `envlt pull` | Write a `.env` file from the vault |
 | `envlt run` | Run a child process with injected variables |
 | `envlt gen` | Generate secure values |
 | `envlt export` | Export a project to `.evlt` |
@@ -43,10 +44,10 @@ For setup and recovery paths, see [Troubleshooting](troubleshooting.md).
 
 Every project has at least one environment (`local`, seeded automatically by `add`/`init`); `envlt env add <name>` creates more, e.g. `staging` or `prod`. Variables are fully duplicated per environment -- there is no inheritance between them, so a variable set in `local` has no effect on `staging` until you explicitly set it there too. A project must always keep at least one environment; `envlt env remove` refuses to delete the last one.
 
-`vars`, `set`, `unset`, `history`, `check`, `use`, `run`, `gen`, and `export` all accept `--env <NAME>`, resolved in this order:
+`vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `gen`, and `export` all accept `--env <NAME>`, resolved in this order:
 
 1. the explicit `--env` flag
-2. the environment recorded on the nearest `.envlt-link`, set with `envlt env use <name>`
+2. the environment recorded on the nearest `.envlt-link`, set with `envlt env switch <name>`
 3. `local`
 
 `diff` accepts both `--env` and `--other-env`; see [`envlt diff`](#envlt-diff) below.
@@ -167,17 +168,19 @@ envlt env list --project api-payments
 envlt env list --project api-payments --format raw
 ```
 
-#### `envlt env add <name> [--project <name>]`
+#### `envlt env add <name> [--project <name>] [--from <other-env>]`
 
 ```bash
 envlt env add staging --project api-payments
 envlt env add prod --project api-payments
+envlt env add staging --project api-payments --from local
 ```
 
 Behavior:
 
 - fails if the environment already exists
-- the new environment starts empty; it does not inherit variables from any other environment
+- the new environment starts empty, unless `--from <other-env>` is given
+- `--from` seeds the new environment with `<other-env>`'s current (non-deleted) variable values -- a one-time copy, not an ongoing link: each seeded variable starts its own independent version history, and changing it afterward in either environment has no effect on the other
 
 #### `envlt env remove <name> [--project <name>] [--yes]`
 
@@ -191,13 +194,13 @@ Behavior:
 - deletes the environment and everything in it, including every variable's version history -- this cannot be undone
 - asks for confirmation by default; `--yes` skips it, for automation
 - fails if the environment doesn't exist, or if it's the project's only remaining environment (every project must keep at least one)
-- there is no rename; recreate the environment and re-set its variables instead
+- there is no rename; recreate the environment and re-set its variables instead (or `--from` an existing one to carry values over)
 
-#### `envlt env use <name> [--project <name>]`
+#### `envlt env switch <name> [--project <name>]`
 
 ```bash
-envlt env use staging --project api-payments
-envlt env use staging
+envlt env switch staging --project api-payments
+envlt env switch staging
 ```
 
 Behavior:
@@ -234,6 +237,22 @@ Output formats:
 - `--format table` (default)
 - `--format raw`
 - `--format json`
+
+### `envlt get <key> [--project <name>] [--env <name>]`
+
+Print a single variable's current value, unmasked, to stdout -- for scripting.
+
+```bash
+envlt get DB_PASSWORD --project api-payments
+envlt get DB_PASSWORD --project api-payments --env staging
+export DB_PASSWORD=$(envlt get DB_PASSWORD --project api-payments)
+```
+
+Behavior:
+
+- always reveals the value, including `Secret` ones -- unlike `vars`, which always masks `Secret` in every format, asking for a specific key by name is treated as an intentional reveal, the same way `gen --show` works
+- fails if the key doesn't exist or has been unset in that environment
+- prints exactly the value and nothing else, so it's safe to capture with `$(...)`
 
 ### `envlt history [--project <name>] [--env <name>]`
 
@@ -398,15 +417,15 @@ envlt unset --project api-payments --env staging JWT_SECRET
 envlt unset JWT_SECRET
 ```
 
-### `envlt use [--project <name>] [--env <name>] [--out <path>]`
+### `envlt pull [--project <name>] [--env <name>] [--out <path>]`
 
-Write a `.env` file from one environment in the vault.
+Pull one environment from the vault into a `.env` file on disk.
 
 ```bash
-envlt use --project api-payments
-envlt use --project api-payments --env staging
-envlt use --project api-payments --out .env.local
-envlt use
+envlt pull --project api-payments
+envlt pull --project api-payments --env staging
+envlt pull --project api-payments --out .env.local
+envlt pull
 ```
 
 ### `envlt run [--project <name>] [--env <name>] -- <command> [args...]`

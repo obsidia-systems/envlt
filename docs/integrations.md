@@ -5,7 +5,7 @@ This document shows practical ways to use `envlt` with common development workfl
 The preferred pattern is:
 
 - use `envlt run` when a tool can read variables from the process environment
-- use `envlt use` only when a tool requires a physical `.env` file
+- use `envlt pull` only when a tool requires a physical `.env` file
 - use `vars`, `diff`, and `doctor` for safe diagnostics because they avoid printing secret values by default
 
 ## direnv
@@ -21,7 +21,7 @@ envlt run -- npm run dev
 If a project already depends on `direnv`, use a generated local `.env` file and keep it ignored by Git:
 
 ```bash
-envlt use --out .env.local
+envlt pull --out .env.local
 ```
 
 Then in `.envrc`:
@@ -55,7 +55,7 @@ envlt run -- docker compose up
 If Compose requires a `.env` file for interpolation, materialize it explicitly:
 
 ```bash
-envlt use --out .env
+envlt pull --out .env
 docker compose up
 ```
 
@@ -84,7 +84,7 @@ ENVLT_PASSPHRASE="$ENVLT_PASSPHRASE" envlt diff --example .env.example --format 
 Operational notes:
 
 - do not commit `ENVLT_PASSPHRASE` or bundle passphrases.
-- avoid running `envlt use` in hosted CI unless the plaintext file is strictly needed and cleaned up.
+- avoid running `envlt pull` in hosted CI unless the plaintext file is strictly needed and cleaned up.
 - prefer platform-native secret stores for production CI/CD.
 
 A future `envlt check --example .env.example` command could provide stricter automation-oriented exit behavior.
@@ -112,7 +112,7 @@ Example `.vscode/tasks.json` task:
 For debug configurations that require an environment file, generate one intentionally:
 
 ```bash
-envlt use --out .env.local
+envlt pull --out .env.local
 ```
 
 Then point the debugger to `.env.local` if the language extension supports env files.
@@ -139,7 +139,7 @@ envlt diff --example .env.example --format raw
 Avoid asking an agent to run commands that reveal or create plaintext secrets unless you explicitly intend that behavior:
 
 ```bash
-envlt use
+envlt pull
 envlt gen --show
 envlt run -- printenv
 ```

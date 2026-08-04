@@ -17,7 +17,7 @@ The main assets are:
 - vault passphrase
 - optional system keyring credential created by `envlt auth save`
 - project variables stored inside the vault
-- generated `.env` files created by `envlt use`
+- generated `.env` files created by `envlt pull`
 - encrypted `.evlt` bundles created by `envlt export`
 - bundle passphrases used for `.evlt` import/export
 - `.envlt-link` project references
@@ -52,7 +52,7 @@ The main assets are:
 - a compromised operating system account
 - a terminal, shell plugin, debugger, or agent that captures command output or environment variables
 - secrets intentionally printed by the user or by a child process
-- plaintext `.env` files after `envlt use` materializes them -- once written, the file is readable by anything with filesystem access to the project directory. This now explicitly includes AI coding assistants (Claude Code, Cursor, Copilot, and similar tools): they routinely read project files as part of normal operation and are not malicious actors in the traditional sense, they simply don't distinguish a `.env` file from any other file in the repo
+- plaintext `.env` files after `envlt pull` materializes them -- once written, the file is readable by anything with filesystem access to the project directory. This now explicitly includes AI coding assistants (Claude Code, Cursor, Copilot, and similar tools): they routinely read project files as part of normal operation and are not malicious actors in the traditional sense, they simply don't distinguish a `.env` file from any other file in the repo
 - weak vault or bundle passphrases chosen by the user
 - shell history exposure when secrets are typed directly into commands
 - remote team access control, audit logs, approvals, or enterprise policy enforcement
@@ -74,7 +74,7 @@ The vault is encrypted on disk using `age` passphrase encryption. The vault pass
 
 ### Materialized Files
 
-`envlt use` writes plaintext variables to disk. This is useful for tools that require `.env` files, but the generated file should be deleted when it is no longer needed and should remain ignored by Git.
+`envlt pull` writes plaintext variables to disk. This is useful for tools that require `.env` files, but the generated file should be deleted when it is no longer needed and should remain ignored by Git.
 
 ### Bundles
 
@@ -101,7 +101,7 @@ Users should:
 
 - choose strong vault and bundle passphrases
 - keep `.env` files in `.gitignore`
-- prefer `envlt run` over `envlt use` when a file is not required
+- prefer `envlt run` over `envlt pull` when a file is not required
 - avoid typing secrets directly into shell commands when possible
 - treat `ENVLT_PASSPHRASE` as sensitive automation input
 - share `.evlt` bundles and bundle passphrases through separate channels

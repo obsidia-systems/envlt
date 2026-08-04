@@ -47,7 +47,7 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 ### Reduced disk exposure
 
 - `envlt run` injects variables into a child process without writing a `.env` file
-- `envlt use` writes a `.env` file and should therefore be treated as a temporary artifact
+- `envlt pull` writes a `.env` file and should therefore be treated as a temporary artifact
 
 ### AI coding assistant exposure
 

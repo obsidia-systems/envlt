@@ -22,7 +22,7 @@ fn cli_with_example(home: &TempDir, example_pairs: &[(&str, &str)]) -> Command {
 }
 
 #[test]
-fn init_add_list_set_use_flow_works() {
+fn init_add_list_set_pull_flow_works() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -54,7 +54,7 @@ fn init_add_list_set_use_flow_works() {
 
     cli(&home)
         .args([
-            "use",
+            "pull",
             "--project",
             "api-payments",
             "--out",
@@ -198,7 +198,7 @@ fn doctor_fails_when_link_target_is_missing() {
 }
 
 #[test]
-fn set_and_use_can_resolve_project_from_link() {
+fn set_and_pull_can_resolve_project_from_link() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -221,7 +221,7 @@ fn set_and_use_can_resolve_project_from_link() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["use", "--out", output_path.to_str().expect("utf8 path")])
+        .args(["pull", "--out", output_path.to_str().expect("utf8 path")])
         .assert()
         .success();
 
@@ -257,7 +257,7 @@ fn commands_resolve_project_from_link_in_a_parent_directory() {
 
     cli(&home)
         .current_dir(&nested_dir)
-        .args(["use", "--out", output_path.to_str().expect("utf8 path")])
+        .args(["pull", "--out", output_path.to_str().expect("utf8 path")])
         .assert()
         .success();
 
@@ -565,12 +565,12 @@ fn import_with_overwrite_replaces_existing_project_snapshot() {
         .assert()
         .success();
 
-    let mut use_cmd = Command::cargo_bin("envlt").expect("binary exists");
-    use_cmd.env("ENVLT_HOME", home_target.path());
-    use_cmd.env("ENVLT_PASSPHRASE", "test-passphrase");
-    use_cmd
+    let mut pull_cmd = Command::cargo_bin("envlt").expect("binary exists");
+    pull_cmd.env("ENVLT_HOME", home_target.path());
+    pull_cmd.env("ENVLT_PASSPHRASE", "test-passphrase");
+    pull_cmd
         .args([
-            "use",
+            "pull",
             "--project",
             "shared-project",
             "--out",
@@ -739,7 +739,7 @@ fn add_from_example_uses_defaults_and_prompts_missing_values() {
 
     cli(&home)
         .args([
-            "use",
+            "pull",
             "--project",
             "example-project",
             "--out",
@@ -819,6 +819,81 @@ fn vars_json_masks_secrets_and_preserves_types() {
 
             has_masked_secret && has_plain
         }));
+}
+
+#[test]
+fn get_prints_a_variables_raw_value_including_secrets() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "API_KEY=abc123\nPORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "get-project"])
+        .assert()
+        .success();
+
+    // Unlike `vars`, which always masks Secret values, `get` reveals the
+    // exact value requested -- asking for a specific key by name is
+    // already an intentional reveal.
+    cli(&home)
+        .args(["get", "API_KEY", "--project", "get-project"])
+        .assert()
+        .success()
+        .stdout("abc123\n");
+
+    cli(&home)
+        .args(["get", "PORT", "--project", "get-project"])
+        .assert()
+        .success()
+        .stdout("3000\n");
+}
+
+#[test]
+fn get_fails_for_an_unknown_key() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "get-missing-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args(["get", "GHOST", "--project", "get-missing-project"])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn get_can_resolve_project_from_link() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "get-link-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["get", "PORT"])
+        .assert()
+        .success()
+        .stdout("3000\n");
 }
 
 #[test]
@@ -2036,7 +2111,71 @@ fn env_remove_rejects_removing_the_last_environment() {
 }
 
 #[test]
-fn env_use_pins_the_default_environment_for_the_directory() {
+fn env_add_from_seeds_values_from_another_environment() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\nAPI_KEY=abc123\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "seed-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "env",
+            "add",
+            "staging",
+            "--project",
+            "seed-project",
+            "--from",
+            "local",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("seeded from 'local'"));
+
+    cli(&home)
+        .args([
+            "vars",
+            "--project",
+            "seed-project",
+            "--env",
+            "staging",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tplain\t3000"))
+        .stdout(predicate::str::contains("API_KEY"));
+
+    // The seed is a one-time copy, not a link: changing it in staging must
+    // not affect local.
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "seed-project",
+            "--env",
+            "staging",
+            "PORT=9000",
+        ])
+        .assert()
+        .success();
+    cli(&home)
+        .args(["vars", "--project", "seed-project", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tplain\t3000"));
+}
+
+#[test]
+fn env_add_from_rejects_an_unknown_source_environment() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -2046,18 +2185,47 @@ fn env_use_pins_the_default_environment_for_the_directory() {
     cli(&home).arg("init").assert().success();
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["add", "env-use-project"])
+        .args(["add", "seed-ghost-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "env",
+            "add",
+            "staging",
+            "--project",
+            "seed-ghost-project",
+            "--from",
+            "ghost",
+        ])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn env_switch_pins_the_default_environment_for_the_directory() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-switch-project"])
         .assert()
         .success();
     cli(&home)
-        .args(["env", "add", "staging", "--project", "env-use-project"])
+        .args(["env", "add", "staging", "--project", "env-switch-project"])
         .assert()
         .success();
     cli(&home)
         .args([
             "set",
             "--project",
-            "env-use-project",
+            "env-switch-project",
             "--env",
             "staging",
             "PORT=9000",
@@ -2067,7 +2235,7 @@ fn env_use_pins_the_default_environment_for_the_directory() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["env", "use", "staging"])
+        .args(["env", "switch", "staging"])
         .assert()
         .success();
 
@@ -2084,7 +2252,7 @@ fn env_use_pins_the_default_environment_for_the_directory() {
 }
 
 #[test]
-fn env_use_rejects_an_unknown_environment() {
+fn env_switch_rejects_an_unknown_environment() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
@@ -2094,13 +2262,13 @@ fn env_use_rejects_an_unknown_environment() {
     cli(&home).arg("init").assert().success();
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["add", "env-use-ghost-project"])
+        .args(["add", "env-switch-ghost-project"])
         .assert()
         .success();
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["env", "use", "ghost"])
+        .args(["env", "switch", "ghost"])
         .assert()
         .failure();
 }

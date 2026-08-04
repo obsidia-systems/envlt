@@ -13,18 +13,19 @@ use commands::{
     completions::{run_completions, CompletionShell},
     diff::run_diff,
     doctor::run_doctor,
-    env::{run_env_add, run_env_list, run_env_remove, run_env_use},
+    env::{run_env_add, run_env_list, run_env_remove, run_env_switch},
     export::run_export,
     gen::{run_gen, GenOptions},
+    get::run_get,
     history::run_history,
     import::run_import,
     init::run_init,
     list::run_list,
+    pull::run_pull,
     remove::run_remove,
     run::run_run,
     set::run_set,
     unset::run_unset,
-    use_cmd::run_use,
     vars::run_vars,
 };
 use envlt_core::{AppService, VaultStore};
@@ -62,17 +63,22 @@ fn real_main() -> Result<ExitCode> {
         Commands::Remove { project, yes } => run_remove(&service, &project, yes),
         Commands::Env { command } => match command {
             EnvCommands::List { project, format } => run_env_list(&service, &project, format),
-            EnvCommands::Add { name, project } => run_env_add(&service, &name, &project),
+            EnvCommands::Add {
+                name,
+                project,
+                from,
+            } => run_env_add(&service, &name, &project, &from),
             EnvCommands::Remove { name, project, yes } => {
                 run_env_remove(&service, &name, &project, yes)
             }
-            EnvCommands::Use { name, project } => run_env_use(&service, &name, &project),
+            EnvCommands::Switch { name, project } => run_env_switch(&service, &name, &project),
         },
         Commands::Vars {
             project,
             env,
             format,
         } => run_vars(&service, &project, &env, format),
+        Commands::Get { key, project, env } => run_get(&service, &key, &project, &env),
         Commands::Doctor { decrypt, format } => run_doctor(&service, decrypt, format),
         Commands::Completions { shell } => run_completions(shell),
         Commands::Check {
@@ -139,7 +145,7 @@ fn real_main() -> Result<ExitCode> {
             plain,
         } => run_set(&service, &project, &env, &assignment, secret, plain),
         Commands::Unset { project, env, key } => run_unset(&service, &project, &env, &key),
-        Commands::Use { project, env, out } => run_use(&service, &project, &env, &out),
+        Commands::Pull { project, env, out } => run_pull(&service, &project, &env, &out),
         Commands::Run {
             project,
             env,
@@ -248,6 +254,24 @@ enum Commands {
         env: Option<String>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
         format: OutputFormat,
+    },
+    #[command(
+        about = "Print a single variable's value",
+        long_about = "Print one variable's value to stdout, unmasked, for scripting -- e.g. `export DB_PASSWORD=$(envlt get DB_PASSWORD)`. Unlike `vars`, which always masks Secret values, requesting a specific key by name is treated as an intentional reveal, the same way `gen --show` works."
+    )]
+    Get {
+        #[arg(help = "Variable key to print")]
+        key: String,
+        #[arg(
+            long,
+            help = "Project to read from; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to read from; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
     },
     #[command(
         about = "Generate shell completion scripts",
@@ -404,9 +428,9 @@ enum Commands {
     },
     #[command(
         about = "Write a .env file from a project stored in the vault",
-        long_about = "Materialize a project's variables into a .env-style file. This is useful for local tooling that expects a file on disk."
+        long_about = "Pull a project's variables from the vault into a .env-style file on disk. This is useful for local tooling that expects a file on disk; prefer `envlt run` when a file is not required."
     )]
-    Use {
+    Pull {
         #[arg(
             long,
             help = "Project to materialize; falls back to .envlt-link when omitted"
@@ -498,7 +522,10 @@ enum EnvCommands {
         #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
         format: OutputFormat,
     },
-    #[command(about = "Add a new, empty environment to a project")]
+    #[command(
+        about = "Add a new environment to a project",
+        long_about = "Add a new environment to a project, empty by default. With --from, seed it with another environment's current values instead -- a one-time copy, not an ongoing link: each seeded variable starts its own independent version history."
+    )]
     Add {
         #[arg(help = "Environment name to add, e.g. staging or prod")]
         name: String,
@@ -507,6 +534,11 @@ enum EnvCommands {
             help = "Project to update; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Seed the new environment with another environment's current values"
+        )]
+        from: Option<String>,
     },
     #[command(
         about = "Remove an environment and all its variables",
@@ -525,9 +557,9 @@ enum EnvCommands {
     },
     #[command(
         about = "Set the default environment for the current directory",
-        long_about = "Pin an environment as this directory's default by writing it into .envlt-link, so --env can be omitted on later commands run from here. Fails if the environment doesn't exist."
+        long_about = "Pin an environment as this directory's default by writing it into .envlt-link, so --env can be omitted on later commands run from here. Fails if the environment doesn't exist. Re-run it any time to switch a directory's default to a different environment."
     )]
-    Use {
+    Switch {
         #[arg(help = "Environment name to default to, e.g. staging or prod")]
         name: String,
         #[arg(

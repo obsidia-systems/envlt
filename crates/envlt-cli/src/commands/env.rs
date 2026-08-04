@@ -34,13 +34,22 @@ pub fn run_env_list(
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn run_env_add(service: &AppService, name: &str, project: &Option<String>) -> Result<ExitCode> {
+pub fn run_env_add(
+    service: &AppService,
+    name: &str,
+    project: &Option<String>,
+    from: &Option<String>,
+) -> Result<ExitCode> {
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
-    service.add_environment(&project, name, &passphrase)?;
-    print_success(&format!(
-        "Environment '{name}' added to project '{project}'."
-    ))?;
+    service.add_environment(&project, name, from.as_deref(), &passphrase)?;
+    let message = match from {
+        Some(source) => {
+            format!("Environment '{name}' added to project '{project}' (seeded from '{source}').")
+        }
+        None => format!("Environment '{name}' added to project '{project}'."),
+    };
+    print_success(&message)?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -75,11 +84,15 @@ pub fn run_env_remove(
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn run_env_use(service: &AppService, name: &str, project: &Option<String>) -> Result<ExitCode> {
+pub fn run_env_switch(
+    service: &AppService,
+    name: &str,
+    project: &Option<String>,
+) -> Result<ExitCode> {
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let current_dir = env::current_dir()?;
-    service.use_environment(&project, name, &current_dir, &passphrase)?;
+    service.switch_environment(&project, name, &current_dir, &passphrase)?;
     print_success(&format!(
         "'{}' now defaults to environment '{name}' for project '{project}'.",
         current_dir.display()
