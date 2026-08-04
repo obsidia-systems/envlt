@@ -44,6 +44,7 @@ The repository already contains:
 The release workflow currently:
 
 - runs on tags matching `v*`
+- first runs its own `verify` job (`fmt`, `clippy`, `test`) that the build matrix depends on, so a tag doesn't have to trust that `ci.yml` already ran against that exact commit -- a hotfix tagged directly, or a tag pushed before the post-merge CI run finishes, still gets checked before anything is built
 - builds explicit per-architecture CLI release binaries
 - creates `.tar.gz` archives
 - generates `.sha256` checksum files

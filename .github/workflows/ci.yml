@@ -2,14 +2,46 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt
+
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
   checks:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -19,19 +51,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
-          components: rustfmt, clippy
+          components: clippy
 
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@v2
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
 
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
@@ -42,10 +71,11 @@ jobs:
   supply-chain:
     name: Supply-chain checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # cargo-audit is compiled from source by the action below, and its
       # own dependency tree's MSRV can (and has) outpaced the Rust version
@@ -54,6 +84,9 @@ jobs:
       # never falls behind what cargo-audit itself requires to build.
       - name: Install latest stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Audit advisories (cargo-audit)
         uses: rustsec/audit-check@v2

@@ -12,9 +12,41 @@ permissions:
   attestations: write
 
 jobs:
+  verify:
+    name: Verify (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked
+
   build:
     name: Build ${{ matrix.artifact_name }}
     runs-on: ${{ matrix.os }}
+    needs: verify
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +130,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 10
 
     permissions:
       contents: read
