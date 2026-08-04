@@ -47,7 +47,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.95.0
           targets: ${{ matrix.rust_target }}
 
       - name: Restore Cargo cache

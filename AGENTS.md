@@ -164,7 +164,7 @@ Avoid premature rewrites such as:
 ## Coding Style
 
 - Rust edition: 2021.
-- Minimum Rust version: 1.85.
+- Minimum Rust version: 1.95.
 - Clippy `all` is denied at the workspace level.
 - Prefer clear domain names over generic helpers.
 - Prefer minimal changes and avoid speculative abstractions.

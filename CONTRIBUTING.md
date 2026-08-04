@@ -6,7 +6,7 @@ Thanks for your interest in contributing to `envlt`.
 
 Requirements:
 
-- Rust `1.85.0` or newer
+- Rust `1.95.0` or newer
 - `rustfmt`
 - `clippy`
 - `cargo-audit` and `cargo-deny` (only needed for `make audit` / `make deny`; install with `cargo install cargo-audit cargo-deny`)
