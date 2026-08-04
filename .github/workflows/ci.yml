@@ -47,6 +47,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # cargo-audit is compiled from source by the action below, and its
+      # own dependency tree's MSRV can (and has) outpaced the Rust version
+      # baked into the runner image. Always install the latest stable
+      # toolchain here (unpinned, unlike rust-toolchain.toml) so this job
+      # never falls behind what cargo-audit itself requires to build.
+      - name: Install latest stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Audit advisories (cargo-audit)
         uses: rustsec/audit-check@v2
         with:
