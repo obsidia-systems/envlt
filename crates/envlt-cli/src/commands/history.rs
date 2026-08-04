@@ -143,7 +143,6 @@ fn format_detail(event: &ActivityEvent) -> String {
 fn format_var_type(var_type: envlt_core::VarType) -> &'static str {
     match var_type {
         envlt_core::VarType::Secret => "Secret",
-        envlt_core::VarType::Config => "Config",
         envlt_core::VarType::Plain => "Plain",
     }
 }

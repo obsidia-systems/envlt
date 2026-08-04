@@ -106,9 +106,8 @@ fn real_main() -> Result<ExitCode> {
             project,
             assignment,
             secret,
-            config,
             plain,
-        } => run_set(&service, &project, &assignment, secret, config, plain),
+        } => run_set(&service, &project, &assignment, secret, plain),
         Commands::Unset { project, key } => run_unset(&service, &project, &key),
         Commands::Use { project, out } => run_use(&service, &project, &out),
         Commands::Run { project, command } => run_run(&service, &project, &command),
@@ -308,7 +307,7 @@ enum Commands {
     },
     #[command(
         about = "Create or update a project variable",
-        long_about = "Set a variable for a project using KEY=VALUE syntax. The variable type can be inferred automatically or overridden explicitly with --secret, --config, or --plain."
+        long_about = "Set a variable for a project using KEY=VALUE syntax. The variable type can be inferred automatically or overridden explicitly with --secret or --plain."
     )]
     Set {
         #[arg(
@@ -316,23 +315,9 @@ enum Commands {
             help = "Project to update; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
-        #[arg(
-            long,
-            conflicts_with_all = ["config", "plain"],
-            help = "Mark the variable as Secret"
-        )]
+        #[arg(long, conflicts_with = "plain", help = "Mark the variable as Secret")]
         secret: bool,
-        #[arg(
-            long,
-            conflicts_with_all = ["secret", "plain"],
-            help = "Mark the variable as Config"
-        )]
-        config: bool,
-        #[arg(
-            long,
-            conflicts_with_all = ["secret", "config"],
-            help = "Mark the variable as Plain"
-        )]
+        #[arg(long, conflicts_with = "secret", help = "Mark the variable as Plain")]
         plain: bool,
         #[arg(help = "Variable assignment in KEY=VALUE format")]
         assignment: String,

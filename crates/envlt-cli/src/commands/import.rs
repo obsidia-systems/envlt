@@ -94,7 +94,6 @@ fn dry_run_import(service: &AppService, bundle_bytes: &[u8], overwrite: bool) ->
 fn format_var_type(var_type: VarType) -> &'static str {
     match var_type {
         VarType::Secret => "secret",
-        VarType::Config => "config",
         VarType::Plain => "plain",
     }
 }

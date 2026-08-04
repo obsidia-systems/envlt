@@ -104,7 +104,7 @@ Still intentionally out of scope for now:
 - atomic writes with `vault.age.bak` backup
 - `.env` and `.env.example` import
 - `.envlt-link` project resolution
-- typed variables: `Secret`, `Config`, `Plain`
+- typed variables: `Secret`, `Plain`
 - optional system keyring support for vault passphrase reuse
 - secret-aware variable listing
 - project removal with confirmation

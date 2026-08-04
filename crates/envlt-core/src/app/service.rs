@@ -1193,7 +1193,7 @@ mod tests {
         );
         assert_eq!(
             project.variables.get("PORT").map(|var| var.var_type),
-            Some(VarType::Config)
+            Some(VarType::Plain)
         );
     }
 
@@ -1235,7 +1235,7 @@ mod tests {
         );
         assert_eq!(
             project.variables.get("PORT").map(|var| var.var_type),
-            Some(VarType::Config)
+            Some(VarType::Plain)
         );
     }
 
@@ -1364,7 +1364,7 @@ mod tests {
                 VariableView {
                     key: "PORT".to_owned(),
                     value: "3000".to_owned(),
-                    var_type: VarType::Config,
+                    var_type: VarType::Plain,
                     updated_at: project.variables.get("PORT").unwrap().updated_at,
                 },
             ]
@@ -1881,7 +1881,7 @@ mod tests {
             .iter()
             .find(|e| e.action == ActivityAction::VariableTypeChanged && e.variable_key == "PORT");
         assert!(type_changed.is_some(), "expected VariableTypeChanged event");
-        assert_eq!(type_changed.unwrap().old_type, Some(VarType::Config));
+        assert_eq!(type_changed.unwrap().old_type, Some(VarType::Plain));
         assert_eq!(type_changed.unwrap().new_type, Some(VarType::Secret));
     }
 

@@ -78,7 +78,7 @@ impl GenType {
     pub fn default_var_type(self) -> VarType {
         match self {
             Self::JwtSecret | Self::ApiKey | Self::Token | Self::Password => VarType::Secret,
-            Self::Uuid => VarType::Config,
+            Self::Uuid => VarType::Plain,
         }
     }
 }

@@ -154,7 +154,7 @@ envlt vars --project api-payments --format json
 Output behavior:
 
 - `Secret` values are masked
-- `Config` and `Plain` values are shown
+- `Plain` values are shown in full
 
 Output formats:
 
@@ -299,7 +299,6 @@ envlt set --project api-payments --plain APP_NAME=my-app
 Type flags:
 
 - `--secret`
-- `--config`
 - `--plain`
 
 ### `envlt unset [--project <name>] <KEY>`

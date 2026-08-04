@@ -16,6 +16,10 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 - Added a `supply-chain` CI job (`cargo-audit` + `cargo-deny`, via `deny.toml`), a release smoke test (`envlt --version`/`--help`) on every built binary before packaging, and build provenance attestation (`actions/attest-build-provenance`) per release artifact; `make audit` and `make deny` targets mirror this locally and are now part of `make check`
 - New `config.rs` module: `ENVLT_HOME/config.toml` now holds persistent `history_limit` and `lock_timeout_ms` preferences (both optional, both still overridable via `ENVLT_HISTORY_LIMIT`/`ENVLT_LOCK_TIMEOUT_MS`), instead of those settings only existing as env-var reads scattered in `vault/model.rs` and `vault/store.rs`. Invalid TOML or an unparseable env var override now produce a specific, actionable error instead of a silent fallback. `doctor` reports a new `config` check showing the resolved values and their source
 
+### Changed
+
+- **Breaking**: merged `VarType::Config` into `VarType::Plain`. Nothing in the codebase ever treated the two differently -- both were shown in full and masked identically -- so `envlt set`'s `--config` flag is removed and `envlt vars`/`history`/`import --dry-run` now report `plain` instead of `config` for those variables. Existing vaults and `.evlt` bundles with a stored `Config` value keep loading correctly (`#[serde(alias = "Config")]`) and are rewritten as `Plain` the next time they are saved; no vault version bump or migration step was needed
+
 ### Fixed
 
 - `.envlt-link` resolution (`resolve_project_name`, `remove_project`, `doctor`) now walks up through parent directories, similar to `.git` discovery, so commands work from any subdirectory of a linked project (for example, a package folder inside a monorepo) instead of requiring `--project` or an exact match in the current directory

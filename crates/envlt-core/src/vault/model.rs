@@ -111,7 +111,7 @@ impl Project {
 pub struct Variable {
     /// The variable value.
     pub value: String,
-    /// Classification of the variable (secret, config, or plain).
+    /// Classification of the variable (secret or plain).
     #[serde(default)]
     pub var_type: VarType,
     /// UTC timestamp when the variable was created.
@@ -161,10 +161,15 @@ impl Variable {
 pub enum VarType {
     /// Sensitive value that should be masked in output.
     Secret,
-    /// Non-sensitive configuration value.
+    /// Non-sensitive value, shown in full in output.
+    ///
+    /// Deserializes the legacy `Config` value too: `envlt` used to
+    /// distinguish `Config` from `Plain`, but nothing in the codebase ever
+    /// treated them differently, so they were merged. Old vaults and
+    /// bundles keep loading correctly; they are just written back out as
+    /// `Plain` the next time they're saved.
+    #[serde(alias = "Config")]
     #[default]
-    Config,
-    /// Explicitly marked as non-sensitive.
     Plain,
 }
 
@@ -225,7 +230,7 @@ impl ActivityEvent {
     pub fn masked_value(value: &str, var_type: VarType) -> Option<String> {
         match var_type {
             VarType::Secret => None,
-            VarType::Config | VarType::Plain => Some(value.to_owned()),
+            VarType::Plain => Some(value.to_owned()),
         }
     }
 }
@@ -239,7 +244,7 @@ pub fn infer_var_type(name: &str) -> VarType {
     {
         VarType::Secret
     } else {
-        VarType::Config
+        VarType::Plain
     }
 }
 
@@ -285,9 +290,9 @@ mod tests {
     }
 
     #[test]
-    fn infers_config_type_when_name_is_not_sensitive() {
-        assert_eq!(infer_var_type("PORT"), VarType::Config);
-        assert_eq!(infer_var_type("APP_ENV"), VarType::Config);
+    fn infers_plain_type_when_name_is_not_sensitive() {
+        assert_eq!(infer_var_type("PORT"), VarType::Plain);
+        assert_eq!(infer_var_type("APP_ENV"), VarType::Plain);
     }
 
     #[test]
@@ -299,6 +304,15 @@ mod tests {
     #[test]
     fn new_with_type_uses_explicit_type() {
         let variable = Variable::new_with_type("value", VarType::Plain);
+        assert_eq!(variable.var_type, VarType::Plain);
+    }
+
+    #[test]
+    fn deserializes_the_legacy_config_value_as_plain() {
+        let variable: Variable = toml::from_str(
+            "value = \"hello\"\nvar_type = \"Config\"\ncreated_at = \"2024-01-01T00:00:00Z\"\nupdated_at = \"2024-01-01T00:00:00Z\"\n",
+        )
+        .expect("parse legacy Config variable");
         assert_eq!(variable.var_type, VarType::Plain);
     }
 }

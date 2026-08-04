@@ -85,9 +85,10 @@ Core domain types:
 
 Current `VarType` values:
 
-- `Secret`
-- `Config`
-- `Plain`
+- `Secret` -- masked in output unless explicitly revealed
+- `Plain` -- shown in full in output
+
+`Config` existed as a third value historically but was merged into `Plain` since nothing in the codebase ever treated them differently. Old vaults and bundles with a stored `Config` value still deserialize correctly (`#[serde(alias = "Config")]` on `Plain`) and are rewritten as `Plain` the next time they are saved.
 
 Each `Project` maintains an `activity_log` (`Vec<ActivityEvent>`) that records variable lifecycle events. The log is part of the encrypted vault and travels with `.evlt` bundles. It survives variable deletion because it lives at the project level, not inside each `Variable`.
 

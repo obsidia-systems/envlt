@@ -53,7 +53,6 @@ pub fn run_vars(
 fn format_var_type(var_type: VarType) -> &'static str {
     match var_type {
         VarType::Secret => "secret",
-        VarType::Config => "config",
         VarType::Plain => "plain",
     }
 }
@@ -61,7 +60,7 @@ fn format_var_type(var_type: VarType) -> &'static str {
 fn format_value(value: &str, var_type: VarType) -> String {
     match var_type {
         VarType::Secret => mask_secret(value),
-        VarType::Config | VarType::Plain => value.to_owned(),
+        VarType::Plain => value.to_owned(),
     }
 }
 

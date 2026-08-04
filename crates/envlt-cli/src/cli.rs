@@ -109,7 +109,7 @@ pub fn read_example_value(key: &str, var_type: VarType) -> Result<String> {
 
     match var_type {
         VarType::Secret => rpassword::prompt_password(format!("{key}: ")).map_err(Into::into),
-        VarType::Config | VarType::Plain => {
+        VarType::Plain => {
             let mut stdout = io::stdout().lock();
             write!(stdout, "{key}: ")?;
             stdout.flush()?;

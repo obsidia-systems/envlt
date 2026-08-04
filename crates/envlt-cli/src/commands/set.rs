@@ -10,7 +10,6 @@ pub fn run_set(
     project: &Option<String>,
     assignment: &str,
     secret: bool,
-    config: bool,
     plain: bool,
 ) -> Result<ExitCode> {
     let (key, value) = assignment
@@ -20,11 +19,10 @@ pub fn run_set(
         })?;
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
-    let var_type = match (secret, config, plain) {
-        (true, false, false) => Some(VarType::Secret),
-        (false, true, false) => Some(VarType::Config),
-        (false, false, true) => Some(VarType::Plain),
-        (false, false, false) => None,
+    let var_type = match (secret, plain) {
+        (true, false) => Some(VarType::Secret),
+        (false, true) => Some(VarType::Plain),
+        (false, false) => None,
         _ => unreachable!("clap enforces mutual exclusivity"),
     };
     service.set_variable(&project, key, value, var_type, &passphrase)?;

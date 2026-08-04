@@ -667,7 +667,7 @@ fn import_dry_run_previews_without_writing_to_the_vault() {
             "Dry run: importing this bundle would create project 'dry-run-project'",
         ))
         .stdout(predicate::str::contains("API_KEY (secret)"))
-        .stdout(predicate::str::contains("PORT (config)"))
+        .stdout(predicate::str::contains("PORT (plain)"))
         .stdout(predicate::str::contains("super-secret").not())
         .stdout(predicate::str::contains("Nothing was written"));
 
@@ -773,7 +773,7 @@ fn vars_shows_types_and_masks_secret_values() {
         .assert()
         .success()
         .stdout(predicate::str::contains("API_KEY\tsecret\tab***"))
-        .stdout(predicate::str::contains("PORT\tconfig\t3000"));
+        .stdout(predicate::str::contains("PORT\tplain\t3000"));
 }
 
 #[test]
@@ -811,13 +811,13 @@ fn vars_json_masks_secrets_and_preserves_types() {
                     && row.get("value") == Some(&Value::String("ab***".to_owned()))
             });
 
-            let has_config = rows.iter().any(|row| {
+            let has_plain = rows.iter().any(|row| {
                 row.get("key") == Some(&Value::String("PORT".to_owned()))
-                    && row.get("type") == Some(&Value::String("config".to_owned()))
+                    && row.get("type") == Some(&Value::String("plain".to_owned()))
                     && row.get("value") == Some(&Value::String("3000".to_owned()))
             });
 
-            has_masked_secret && has_config
+            has_masked_secret && has_plain
         }));
 }
 
@@ -902,7 +902,7 @@ fn unset_removes_variable_from_project() {
         .args(["vars", "--project", "unset-project", "--format", "raw"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tconfig\t3000"))
+        .stdout(predicate::str::contains("PORT\tplain\t3000"))
         .stdout(predicate::str::contains("MODE").not());
 }
 
@@ -932,7 +932,7 @@ fn unset_can_resolve_project_from_link() {
         .args(["vars", "--format", "raw"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("KEEP\tconfig\t1"))
+        .stdout(predicate::str::contains("KEEP\tplain\t1"))
         .stdout(predicate::str::contains("DROP").not());
 }
 
