@@ -5,21 +5,23 @@ use chrono::Utc;
 use envlt_core::{ActivityAction, ActivityEvent, AppService};
 use serde_json::to_string_pretty;
 
-use crate::cli::read_passphrase;
+use crate::cli::{read_passphrase, resolve_environment};
 use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_history(
     service: &AppService,
     project: &Option<String>,
+    env: &Option<String>,
     key: Option<&str>,
     format: OutputFormat,
 ) -> Result<ExitCode> {
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
+    let environment = resolve_environment(env.as_deref(), None)?;
 
     let events = match key {
-        Some(k) => service.variable_history(&project, k, &passphrase)?,
-        None => service.project_activity_log(&project, &passphrase)?,
+        Some(k) => service.variable_history(&project, &environment, k, &passphrase)?,
+        None => service.project_activity_log(&project, &environment, &passphrase)?,
     };
 
     if events.is_empty() {

@@ -4,8 +4,9 @@ use serde::Deserialize;
 
 use crate::error::{EnvltError, Result};
 
-/// Default number of activity-log entries kept per project.
-pub const DEFAULT_HISTORY_LIMIT: usize = 20;
+/// Default number of past values kept per variable, mirroring HashiCorp
+/// Vault's KV v2 secrets engine default.
+pub const DEFAULT_MAX_VERSIONS: usize = 10;
 /// Default time `VaultStore::lock` waits for another `envlt` process.
 pub const DEFAULT_LOCK_TIMEOUT_MS: u64 = 5000;
 
@@ -13,8 +14,9 @@ pub const DEFAULT_LOCK_TIMEOUT_MS: u64 = 5000;
 /// variable, then `config.toml`, then the built-in default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Config {
-    /// Number of activity-log entries kept per project.
-    pub history_limit: usize,
+    /// Number of past values kept per variable (see
+    /// [`crate::vault::Variable::record`]).
+    pub max_versions: usize,
     /// How long `VaultStore::lock` waits for another process, in milliseconds.
     pub lock_timeout_ms: u64,
 }
@@ -22,7 +24,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            history_limit: DEFAULT_HISTORY_LIMIT,
+            max_versions: DEFAULT_MAX_VERSIONS,
             lock_timeout_ms: DEFAULT_LOCK_TIMEOUT_MS,
         }
     }
@@ -32,7 +34,13 @@ impl Default for Config {
 /// partial file is valid; anything left unset falls back to the default.
 #[derive(Debug, Default, Deserialize)]
 struct RawConfig {
-    history_limit: Option<usize>,
+    /// Accepts the pre-versioning field name too: `envlt` used to cap a
+    /// per-project activity log at this count instead of a per-variable
+    /// version count, but the concept is close enough (and the field new
+    /// enough) that silently dropping an existing `config.toml` setting
+    /// would be more surprising than reinterpreting it.
+    #[serde(alias = "history_limit")]
+    max_versions: Option<usize>,
     lock_timeout_ms: Option<u64>,
 }
 
@@ -40,7 +48,7 @@ impl Config {
     /// Load configuration for the `envlt` home directory `root_dir`.
     ///
     /// `root_dir/config.toml` is optional; a missing file is treated the
-    /// same as an empty one. `ENVLT_HISTORY_LIMIT` and
+    /// same as an empty one. `ENVLT_MAX_VERSIONS` and
     /// `ENVLT_LOCK_TIMEOUT_MS`, when set, override the corresponding
     /// `config.toml` value.
     pub fn load(root_dir: &Path) -> Result<Config> {
@@ -55,12 +63,12 @@ impl Config {
             RawConfig::default()
         };
 
-        let history_limit = match std::env::var("ENVLT_HISTORY_LIMIT") {
+        let max_versions = match std::env::var("ENVLT_MAX_VERSIONS") {
             Ok(value) => value.parse().map_err(|_| EnvltError::InvalidConfigValue {
-                key: "ENVLT_HISTORY_LIMIT".to_owned(),
+                key: "ENVLT_MAX_VERSIONS".to_owned(),
                 value,
             })?,
-            Err(_) => raw.history_limit.unwrap_or(DEFAULT_HISTORY_LIMIT),
+            Err(_) => raw.max_versions.unwrap_or(DEFAULT_MAX_VERSIONS),
         };
 
         let lock_timeout_ms = match std::env::var("ENVLT_LOCK_TIMEOUT_MS") {
@@ -72,7 +80,7 @@ impl Config {
         };
 
         Ok(Config {
-            history_limit,
+            max_versions,
             lock_timeout_ms,
         })
     }
@@ -107,12 +115,12 @@ mod tests {
         let temp = TempDir::new().expect("tempdir");
         fs::write(
             temp.path().join("config.toml"),
-            "history_limit = 5\nlock_timeout_ms = 1000\n",
+            "max_versions = 5\nlock_timeout_ms = 1000\n",
         )
         .expect("write config");
 
         let config = Config::load(temp.path()).expect("load");
-        assert_eq!(config.history_limit, 5);
+        assert_eq!(config.max_versions, 5);
         assert_eq!(config.lock_timeout_ms, 1000);
     }
 
@@ -121,44 +129,54 @@ mod tests {
         let _env_lock = ENV_VAR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("tempdir");
         let config = Config::load(temp.path()).expect("load");
-        assert_eq!(config.history_limit, DEFAULT_HISTORY_LIMIT);
+        assert_eq!(config.max_versions, DEFAULT_MAX_VERSIONS);
     }
 
     #[test]
     fn load_partial_config_falls_back_to_defaults_for_missing_fields() {
         let _env_lock = ENV_VAR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("tempdir");
-        fs::write(temp.path().join("config.toml"), "history_limit = 7\n").expect("write config");
+        fs::write(temp.path().join("config.toml"), "max_versions = 7\n").expect("write config");
 
         let config = Config::load(temp.path()).expect("load");
-        assert_eq!(config.history_limit, 7);
+        assert_eq!(config.max_versions, 7);
         assert_eq!(config.lock_timeout_ms, DEFAULT_LOCK_TIMEOUT_MS);
+    }
+
+    #[test]
+    fn load_accepts_the_legacy_history_limit_key_via_alias() {
+        let _env_lock = ENV_VAR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let temp = TempDir::new().expect("tempdir");
+        fs::write(temp.path().join("config.toml"), "history_limit = 12\n").expect("write config");
+
+        let config = Config::load(temp.path()).expect("load");
+        assert_eq!(config.max_versions, 12);
     }
 
     #[test]
     fn env_var_overrides_config_toml() {
         let _env_lock = ENV_VAR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let temp = TempDir::new().expect("tempdir");
-        fs::write(temp.path().join("config.toml"), "history_limit = 5\n").expect("write config");
+        fs::write(temp.path().join("config.toml"), "max_versions = 5\n").expect("write config");
 
-        std::env::set_var("ENVLT_HISTORY_LIMIT", "99");
-        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
+        std::env::set_var("ENVLT_MAX_VERSIONS", "99");
+        let _guard = CleanupEnvVar("ENVLT_MAX_VERSIONS");
 
         let config = Config::load(temp.path()).expect("load");
-        assert_eq!(config.history_limit, 99);
+        assert_eq!(config.max_versions, 99);
     }
 
     #[test]
     fn invalid_env_var_value_is_a_clear_error() {
         let _env_lock = ENV_VAR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        std::env::set_var("ENVLT_HISTORY_LIMIT", "not-a-number");
-        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
+        std::env::set_var("ENVLT_MAX_VERSIONS", "not-a-number");
+        let _guard = CleanupEnvVar("ENVLT_MAX_VERSIONS");
 
         let temp = TempDir::new().expect("tempdir");
         let error = Config::load(temp.path()).expect_err("invalid value");
         assert!(matches!(
             error,
-            EnvltError::InvalidConfigValue { key, .. } if key == "ENVLT_HISTORY_LIMIT"
+            EnvltError::InvalidConfigValue { key, .. } if key == "ENVLT_MAX_VERSIONS"
         ));
     }
 
@@ -168,7 +186,7 @@ mod tests {
         let temp = TempDir::new().expect("tempdir");
         fs::write(
             temp.path().join("config.toml"),
-            "history_limit = \"not a number\"\n",
+            "max_versions = \"not a number\"\n",
         )
         .expect("write config");
 

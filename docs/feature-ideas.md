@@ -96,7 +96,7 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - `VaultStore::load` rejects anything outside `MIN_SUPPORTED_VAULT_VERSION..=VAULT_VERSION`.
   - A pre-migration backup (`vault.v{old}.pre-migration.age`) is written before migrating.
   - `doctor` reports a `vault_format` check showing the current version or that a migration was just applied.
-  - Fixture vaults for old versions live in `vault::store::tests` and `app::service::tests::vault_v1_migration_loads_with_empty_activity_log`.
+  - Fixture vaults for old versions live in `vault::store::tests`, `vault::migration::tests`, and `app::service::tests::vault_v1_migration_loads_variables_into_local_environment`.
 - **Why**: Required before introducing `Environment` or any vault format change.
 
 ### 6. Bundle Sharing Enhancements
@@ -125,30 +125,33 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Security rules**: Never show `Secret` values by default; avoid copying secrets to logs or panic messages; consider clipboard support only as an explicit, timed operation.
 - **Why**: Reduces command memorization and makes the vault discoverable without weakening the CLI model.
 
-### 8. Project Environments
+### 8. Project Environments — Done
 - **Overlap with tech-debt**: None — new feature.
-- **Dependencies**: Migration infrastructure (5) is **required** before changing the vault model.
-- **Scope**:
-  - Introduce `Environment` as an explicit domain concept under `Project`.
-  - Migrate existing projects into a `local` environment.
-  - Keep variables fully scoped to one environment in the first version.
-  - Allow `.envlt-link` to store project + optional default environment.
-  - Recommended CLI shape:
+- **Dependencies**: Migration infrastructure (5), which existed before this landed.
+- **Scope** (implemented):
+  - `Environment` is now an explicit domain concept under `Project` (`Project.environments: BTreeMap<String, Environment>`); vault format bumped to v3, with `migrate_v2_to_v3` moving pre-existing projects' variables into a `local` environment automatically.
+  - Variables are fully duplicated per environment, with no inheritance -- the "shared project-level variables" alternative considered below was deferred, same as originally planned.
+  - `--env <NAME>` added to `vars`, `set`, `unset`, `history`, `check`, `use`, `run`, `gen`, and `export`; `diff` gets both `--env`/`--other-env`. Resolution: explicit `--env` → `.envlt-link`'s `environment` field → `local`.
+  - `.envlt-link` gained an optional `environment` field (schema only for now -- no command writes it yet, deliberately deferred to avoid scope creep in an already-large change).
+  - New `envlt env list`/`envlt env add <name>` commands, matching the CLI shape sketched below almost exactly.
+  - `.evlt` bundles export exactly **one** environment (not the whole project), flattened to current values with no history and no soft-deleted variables, so a leaked or misdirected bundle can't expose more than that one environment's present state. Bundle format bumped to v2; older bundles are rejected with a message pointing at re-exporting.
+  - This landed together with full per-variable version history (see item this doc didn't originally scope for `Secret` values -- see `docs/security.md` and `docs/threat-model.md` for that trade-off): `Project.activity_log` is gone, and `envlt history` is reconstructed on demand from each variable's version list instead.
+  - Recommended CLI shape (as implemented):
     ```bash
     envlt env list --project api-payments
     envlt env add staging --project api-payments
     envlt vars --project api-payments --env staging
-    envlt set DATABASE_URL=... --project api-payments --env staging --secret
+    envlt set --project api-payments --env staging --secret DATABASE_URL=...
     envlt use --project api-payments --env staging --out .env
     envlt run --project api-payments --env staging -- node server.js
-    envlt diff --project api-payments --env staging --other-env prod
+    envlt diff --project api-payments --other-env staging
     ```
-  - In the TUI: project selector → environment selector → variables scoped to selection.
-- **Open design questions** (to settle before implementation):
-  - Should each project have a default environment?
-  - Should variables be duplicated per environment, or should there be shared project-level variables plus overrides?
-  - Should `.evlt` bundles export one environment, selected environments, or the whole project?
-- **Deferred**: Shared/project-level inherited variables until there is strong demand.
+  - TUI's project/environment selector remains unimplemented, tracked under item 7.
+- **Resolved design questions**:
+  - Every project has a default environment (`local`), seeded automatically by `add`/`init`.
+  - Variables are duplicated per environment, not shared with overrides.
+  - `.evlt` bundles export exactly one environment, never the whole project.
+- **Deferred**: shared/project-level inherited variables (no demand yet); `.envlt-link` environment-writing CLI surface (e.g. `set --env staging --save-link`).
 - **Why**: Most teams already think in environments (`dev`, `staging`, `prod`).
 
 ### 9. Configuration File — Done
@@ -156,8 +159,8 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 - **Dependencies**: None.
 - **Scope** (implemented):
   - `config::Config` reads from `ENVLT_HOME/config.toml`, resolved via `VaultStore::config()`.
-  - Supports `history_limit` (default 20) and `lock_timeout_ms` (default 5000), the two settings that previously lived only as env-var reads scattered in `vault/model.rs` and `vault/store.rs`.
-  - `ENVLT_HISTORY_LIMIT` / `ENVLT_LOCK_TIMEOUT_MS` still override the config file value when set.
+  - Supported `history_limit` (default 20) and `lock_timeout_ms` (default 5000) at the time this landed; `history_limit` was later renamed to `max_versions` (default 10) when item 8 (Environments) moved history from a per-project log to a per-variable version count -- old `config.toml` files with `history_limit` still work via a serde alias.
+  - `ENVLT_HISTORY_LIMIT` / `ENVLT_LOCK_TIMEOUT_MS` overrode the config file value when set; the first is now `ENVLT_MAX_VERSIONS`.
   - The file is fully optional -- a missing or partially-filled `config.toml` falls back to defaults field by field.
   - Invalid TOML or an unparseable env var override both produce a specific `EnvltError` (`ConfigParse` / `InvalidConfigValue`) instead of a silent fallback or a generic error.
   - `doctor` reports a new `config` check showing the resolved values and whether they came from `config.toml` or defaults.
@@ -219,10 +222,9 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 
 ### Suggested Implementation Order
 
-Items 1–6, 9, and 11 are done (see each item above for what was implemented). What's left, in order:
+Items 1–6, 8, 9, and 11 are done (see each item above for what was implemented). What's left, in order:
 
-7. **Terminal UI** — builds on link resolution and safe-output guarantees, both now in place.
-8. **Project Environments** — uses the migration infrastructure, which now exists.
+7. **Terminal UI** — builds on link resolution and safe-output guarantees, both now in place; can also surface the environment selector item 8 deferred.
 10. **Improve `envlt run`** — polishes the safest daily workflow.
 
 ---

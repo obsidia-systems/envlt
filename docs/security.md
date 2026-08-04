@@ -26,6 +26,13 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 - `envlt-core` extends this through the passphrase's full round-trip: the copy read back from the system keyring (including the write-verification read), the decrypted vault/project plaintext returned by `vault::crypto::decrypt`, the plaintext TOML passed into and out of `VaultStore::load`/`save`, and the scrypt-derived bundle key are all held in `Zeroizing` wrappers and cleared on drop
 - this does not extend to the deserialized vault contents themselves -- once loaded, a `Variable`'s value lives as a plain `String` for as long as the vault stays in memory; see `docs/tech-debt.md` for why that boundary is intentional
 
+### Environments, and full version history for `Secret` values
+
+- variables are fully duplicated per environment (`local`, `staging`, `prod`, ...); there is no inheritance, so a variable's meaning never depends on where in a lookup chain it was found
+- every variable keeps its full value history (`Variable.versions`), including for `Secret` values, not just `Plain` ones -- this is a deliberate trade-off, not an oversight: whoever can decrypt the vault can already see the *current* secret value, so keeping bounded history extends that same trust boundary to *past* values rather than creating a new one. It does mean a compromised vault passphrase now exposes a secret's rotation history, not only its latest value
+- history is bounded by `max_versions` (default 10, see [Getting Started: Configuration file](getting-started.md#configuration-file)); older versions are dropped and unrecoverable once trimmed
+- unsetting a variable tombstones it rather than deleting it outright, so `envlt history` still shows it was deleted and what its last value was; it stops appearing in `vars`, `.env` output, `run`, `diff`, and `check` the moment it's tombstoned
+
 ### Basic backup strategy
 
 - when an existing vault is overwritten, `envlt` creates `vault.age.bak`
@@ -35,6 +42,7 @@ For explicit guarantees, non-goals, assumptions, and user responsibilities, see 
 
 - exported `.evlt` bundles use a passphrase independent from the vault passphrase
 - sharing a bundle does not require sharing the master vault passphrase
+- a bundle carries exactly one environment, flattened to current values only -- no other environment's variables and no version history are included -- so a leaked or misdirected bundle can't expose more than that one environment's present state
 
 ### Reduced disk exposure
 

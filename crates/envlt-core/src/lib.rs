@@ -38,8 +38,8 @@ pub use env::{parse_env_file, parse_env_str, render_env};
 pub use error::{EnvltError, Result};
 pub use gen::{generate_custom_value, generate_value, supported_gen_types, Charset, GenType};
 pub use vault::{
-    infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultData,
-    VaultStore,
+    infer_var_type, synthesize_variable_events, ActivityAction, ActivityEvent, Environment,
+    Project, VarType, Variable, VariableVersion, VaultData, VaultStore, DEFAULT_ENVIRONMENT,
 };
 
 /// Test-only helpers shared across the crate's test modules.

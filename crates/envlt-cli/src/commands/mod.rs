@@ -4,6 +4,7 @@ pub mod check;
 pub mod completions;
 pub mod diff;
 pub mod doctor;
+pub mod env;
 pub mod export;
 pub mod gen;
 pub mod history;

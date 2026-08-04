@@ -76,7 +76,7 @@ cargo run -p envlt-cli -- --help
 | `ENVLT_GEN_SAVE` | Answer whether interactive `gen` should store the result |
 | `ENVLT_GEN_SET_KEY` | Set the target key for interactive `gen` storage |
 | `ENVLT_GEN_PROJECT` | Set the target project for interactive `gen` storage |
-| `ENVLT_HISTORY_LIMIT` | Override `history_limit` from `config.toml` for this process |
+| `ENVLT_MAX_VERSIONS` | Override `max_versions` from `config.toml` for this process |
 | `ENVLT_LOCK_TIMEOUT_MS` | Override `lock_timeout_ms` from `config.toml` for this process |
 
 When setting `ENVLT_HOME`, prefer an absolute path so keyring lookup stays consistent across shells and working directories.
@@ -87,9 +87,11 @@ When setting `ENVLT_HOME`, prefer an absolute path so keyring lookup stays consi
 
 ```toml
 # ~/.envlt/config.toml
-history_limit = 20     # default: 20
+max_versions = 10      # default: 10
 lock_timeout_ms = 5000 # default: 5000
 ```
+
+`max_versions` caps how many past values each variable keeps (see [Environments](#environments) below), mirroring HashiCorp Vault KV v2's default. A `config.toml` with the older `history_limit` key still works (read as `max_versions`), but `envlt doctor` and newly written files use the current name.
 
 Precedence for both settings is: environment variable (if set) > `config.toml` value > built-in default. `envlt doctor` reports the resolved values and where they came from under the `config` check. There is currently no `envlt config` command; edit the file directly.
 
@@ -180,6 +182,19 @@ Output policy:
 - `--show` explicitly reveals the stored generated value
 - `--silent` suppresses all output and conflicts with `--show`
 
+### Environments
+
+Every project starts with one environment, `local`. Add more with `envlt env add`, and target them with `--env` on the commands that read or write variables:
+
+```bash
+envlt env add staging --project api-payments
+envlt set --project api-payments --env staging DATABASE_URL=postgres://staging-host/db
+envlt vars --project api-payments --env staging
+envlt run --project api-payments --env staging -- node server.js
+```
+
+Variables are fully duplicated per environment: setting `DATABASE_URL` in `staging` has no effect on `local`, and `envlt vars` without `--env` always shows `local`. See [CLI Reference](cli-reference.md#environments) for the full list of `--env`-aware commands and the resolution order.
+
 ### Share a project snapshot
 
 ```bash
@@ -239,12 +254,15 @@ project = "api-payments"
 envlt_version = "1.0"
 ```
 
+`.envlt-link` also supports an optional `environment` field as a per-directory default for `--env`-aware commands, but no command writes it yet -- set `--env` explicitly until that lands.
+
 ## Current limitations
 
 - native Windows packaging is not a current target; use WSL on Windows
 - Cloud sync is not implemented
 - `gen` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone
+- no command writes an `environment` into `.envlt-link` yet, so it always falls back to `local` unless `--env` is given explicitly
 
 ## Troubleshooting
 

@@ -59,8 +59,8 @@ sequenceDiagram
     participant CLI as envlt CLI
     participant Core as envlt-core
 
-    U->>CLI: envlt export <project>
-    CLI->>Core: load project snapshot
+    U->>CLI: envlt export <project> [--env]
+    CLI->>Core: build single-environment shadow project (flattened, current values only)
     Core->>Core: serialize project
     Core->>Core: derive key with scrypt
     Core->>Core: encrypt payload with ChaCha20-Poly1305
@@ -77,8 +77,10 @@ sequenceDiagram
 Core domain types:
 
 - `VaultData`
-- `Project`
-- `Variable`
+- `Project` -- a name, an optional path, and a `BTreeMap<String, Environment>`
+- `Environment` -- a name (e.g. `local`, `staging`, `prod`) and a `BTreeMap<String, Variable>`
+- `Variable` -- an optional description, a tombstone (`deleted_at`), and a `Vec<VariableVersion>`
+- `VariableVersion` -- one historical `(value, var_type, created_at)`
 - `VarType`
 - `ActivityEvent`
 - `ActivityAction`
@@ -90,7 +92,15 @@ Current `VarType` values:
 
 `Config` existed as a third value historically but was merged into `Plain` since nothing in the codebase ever treated them differently. Old vaults and bundles with a stored `Config` value still deserialize correctly (`#[serde(alias = "Config")]` on `Plain`) and are rewritten as `Plain` the next time they are saved.
 
-Each `Project` maintains an `activity_log` (`Vec<ActivityEvent>`) that records variable lifecycle events. The log is part of the encrypted vault and travels with `.evlt` bundles. It survives variable deletion because it lives at the project level, not inside each `Variable`.
+### Environments
+
+Variables live under an `Environment`, not directly on a `Project`: every project has at least one (`local`, seeded on `add`/`init`), and `envlt env add <name>` creates more (e.g. `staging`, `prod`). Variables are **fully duplicated per environment** -- there is no project-level default that environments inherit from, so a variable's meaning never depends on where in a lookup chain it was found. `envlt export` bundles exactly one environment at a time (see below), so sharing a bundle can never leak more than one environment's state.
+
+### Version history
+
+Each `Variable` keeps its full value history in `versions` (oldest to newest), for both `Secret` and `Plain` types alike -- see `docs/security.md` for the trade-off this implies. `AppService::set_variable` appends a version via `Variable::record`, which trims the list down to `Config::max_versions` (default 10, oldest dropped first). Unsetting a variable sets `deleted_at` (a tombstone) rather than removing it from the map, so its version history survives deletion; setting it again clears the tombstone and continues the same history rather than starting a new one.
+
+There is no longer a separately stored `activity_log`. `envlt history` is reconstructed on demand by `vault::synthesize_variable_events`, which diffs each variable's adjacent `VariableVersion`s (and appends a synthetic `VariableDeleted` if tombstoned) into the same `ActivityEvent` shape the old hand-maintained log used. This removes a class of bugs where the log and the actual data could drift out of sync, since there is now only one source of truth.
 
 ## Implemented persistence guarantees
 

@@ -13,6 +13,7 @@ use commands::{
     completions::{run_completions, CompletionShell},
     diff::run_diff,
     doctor::run_doctor,
+    env::{run_env_add, run_env_list},
     export::run_export,
     gen::{run_gen, GenOptions},
     history::run_history,
@@ -59,16 +60,38 @@ fn real_main() -> Result<ExitCode> {
         } => run_add(&service, &project, &file, &from_example, project_path),
         Commands::List { format } => run_list(&service, format),
         Commands::Remove { project, yes } => run_remove(&service, &project, yes),
-        Commands::Vars { project, format } => run_vars(&service, &project, format),
+        Commands::Env { command } => match command {
+            EnvCommands::List { project, format } => run_env_list(&service, &project, format),
+            EnvCommands::Add { name, project } => run_env_add(&service, &name, &project),
+        },
+        Commands::Vars {
+            project,
+            env,
+            format,
+        } => run_vars(&service, &project, &env, format),
         Commands::Doctor { decrypt, format } => run_doctor(&service, decrypt, format),
         Commands::Completions { shell } => run_completions(shell),
-        Commands::Check { project, example } => run_check(&service, &project, &example),
+        Commands::Check {
+            project,
+            env,
+            example,
+        } => run_check(&service, &project, &env, &example),
         Commands::Diff {
             project,
+            env,
             other_project,
+            other_env,
             example,
             format,
-        } => run_diff(&service, &project, &other_project, &example, format),
+        } => run_diff(
+            &service,
+            &project,
+            &env,
+            &other_project,
+            &other_env,
+            &example,
+            format,
+        ),
         Commands::Gen {
             gen_type,
             list_types,
@@ -78,6 +101,7 @@ fn real_main() -> Result<ExitCode> {
             show,
             set,
             project,
+            env,
             silent,
             format,
         } => run_gen(
@@ -91,11 +115,12 @@ fn real_main() -> Result<ExitCode> {
                 show,
                 set_key: &set,
                 project: &project,
+                env: &env,
                 silent,
                 list_format: format,
             },
         ),
-        Commands::Export { project, out } => run_export(&service, &project, &out),
+        Commands::Export { project, env, out } => run_export(&service, &project, &env, &out),
         Commands::Import {
             file,
             overwrite,
@@ -104,18 +129,24 @@ fn real_main() -> Result<ExitCode> {
         } => run_import(&service, &file, overwrite, dry_run, inspect),
         Commands::Set {
             project,
+            env,
             assignment,
             secret,
             plain,
-        } => run_set(&service, &project, &assignment, secret, plain),
-        Commands::Unset { project, key } => run_unset(&service, &project, &key),
-        Commands::Use { project, out } => run_use(&service, &project, &out),
-        Commands::Run { project, command } => run_run(&service, &project, &command),
+        } => run_set(&service, &project, &env, &assignment, secret, plain),
+        Commands::Unset { project, env, key } => run_unset(&service, &project, &env, &key),
+        Commands::Use { project, env, out } => run_use(&service, &project, &env, &out),
+        Commands::Run {
+            project,
+            env,
+            command,
+        } => run_run(&service, &project, &env, &command),
         Commands::History {
             project,
+            env,
             key,
             format,
-        } => run_history(&service, &project, key.as_deref(), format),
+        } => run_history(&service, &project, &env, key.as_deref(), format),
     }
 }
 
@@ -189,8 +220,16 @@ enum Commands {
         format: OutputFormat,
     },
     #[command(
+        about = "Manage a project's environments",
+        long_about = "List or add environments (e.g. local, staging, prod) within a project. Variables are fully duplicated per environment -- there is no inheritance between them."
+    )]
+    Env {
+        #[command(subcommand)]
+        command: EnvCommands,
+    },
+    #[command(
         about = "Show variables stored for a project",
-        long_about = "Display variable names, variable types, and values for a project. Secret values are masked by default while Config and Plain values remain visible."
+        long_about = "Display variable names, variable types, and values for a project environment. Secret values are masked by default while Plain values remain visible."
     )]
     Vars {
         #[arg(
@@ -198,6 +237,11 @@ enum Commands {
             help = "Project to inspect; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to inspect; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
         format: OutputFormat,
     },
@@ -219,12 +263,17 @@ enum Commands {
             help = "Project to check; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to check; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(help = "Path to the .env.example file to check against")]
         example: PathBuf,
     },
     #[command(
-        about = "Compare a project against .env.example or another project",
-        long_about = "Produce a safe summary diff without printing secret values. Use --example to compare against a .env.example file, or pass another project name to compare two vault projects."
+        about = "Compare a project against .env.example or another project/environment",
+        long_about = "Produce a safe summary diff without printing secret values. Use --example to compare against a .env.example file, a second project name to compare two vault projects, and/or --other-env to compare two environments (of the same project, unless a second project name is also given)."
     )]
     Diff {
         #[arg(
@@ -232,11 +281,23 @@ enum Commands {
             help = "Base project to compare; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
-        #[arg(help = "Other project to compare against")]
-        other_project: Option<String>,
         #[arg(
             long,
-            conflicts_with = "other_project",
+            help = "Base environment to compare; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
+        #[arg(
+            help = "Other project to compare against; defaults to the base project when only --other-env is given"
+        )]
+        other_project: Option<String>,
+        #[arg(
+            long = "other-env",
+            help = "Other environment to compare against; defaults to the base environment"
+        )]
+        other_env: Option<String>,
+        #[arg(
+            long,
+            conflicts_with_all = ["other_project", "other_env"],
             help = "Path to a .env.example file to compare against"
         )]
         example: Option<PathBuf>,
@@ -272,15 +333,25 @@ enum Commands {
         set: Option<String>,
         #[arg(long, help = "Target project for storing the generated value")]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Target environment for storing the generated value; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(long, help = "Suppress all command output")]
         silent: bool,
         #[arg(long, value_enum, help = "Output format for --list-types")]
         format: Option<OutputFormat>,
     },
-    #[command(about = "Export a project to an encrypted .evlt bundle")]
+    #[command(about = "Export a project environment to an encrypted .evlt bundle")]
     Export {
         #[arg(help = "Project name to export")]
         project: String,
+        #[arg(
+            long,
+            help = "Environment to export; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(long, help = "Output path for the encrypted bundle")]
         out: PathBuf,
     },
@@ -315,6 +386,11 @@ enum Commands {
             help = "Project to update; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to update; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(long, conflicts_with = "plain", help = "Mark the variable as Secret")]
         secret: bool,
         #[arg(long, conflicts_with = "secret", help = "Mark the variable as Plain")]
@@ -334,6 +410,11 @@ enum Commands {
         project: Option<String>,
         #[arg(
             long,
+            help = "Environment to materialize; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
+        #[arg(
+            long,
             default_value = ".env",
             help = "Output path for the rendered env file"
         )]
@@ -349,6 +430,11 @@ enum Commands {
             help = "Project to inspect; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to inspect; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
         format: OutputFormat,
         #[arg(help = "Variable key to show history for")]
@@ -364,6 +450,11 @@ enum Commands {
             help = "Project to update; falls back to .envlt-link when omitted"
         )]
         project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to update; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
         #[arg(help = "Variable key to delete")]
         key: String,
     },
@@ -378,11 +469,40 @@ enum Commands {
         )]
         project: Option<String>,
         #[arg(
+            long,
+            help = "Environment to run with; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
+        #[arg(
             help = "Command and arguments to execute",
             required = true,
             trailing_var_arg = true
         )]
         command: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum EnvCommands {
+    #[command(about = "List a project's environments")]
+    List {
+        #[arg(
+            long,
+            help = "Project to inspect; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Table, help = "Output format")]
+        format: OutputFormat,
+    },
+    #[command(about = "Add a new, empty environment to a project")]
+    Add {
+        #[arg(help = "Environment name to add, e.g. staging or prod")]
+        name: String,
+        #[arg(
+            long,
+            help = "Project to update; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
     },
 }
 

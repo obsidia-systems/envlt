@@ -12,7 +12,8 @@ The primary security goal is to reduce accidental exposure of local development 
 
 The main assets are:
 
-- vault contents stored in `~/.envlt/vault.age` or the configured `ENVLT_HOME`
+- vault contents stored in `~/.envlt/vault.age` or the configured `ENVLT_HOME`, including each variable's full version history, not only its current value
+- a project's environments (e.g. `local`, `staging`, `prod`), each with its own fully independent set of variables
 - vault passphrase
 - optional system keyring credential created by `envlt auth save`
 - project variables stored inside the vault
@@ -77,7 +78,11 @@ The vault is encrypted on disk using `age` passphrase encryption. The vault pass
 
 ### Bundles
 
-`.evlt` bundles use a bundle passphrase independent from the vault passphrase. Sharing a bundle is safer than sharing raw `.env` files, but the bundle passphrase must be shared through a separate channel.
+`.evlt` bundles use a bundle passphrase independent from the vault passphrase. Sharing a bundle is safer than sharing raw `.env` files, but the bundle passphrase must be shared through a separate channel. A bundle carries exactly one environment, flattened to its current values (no other environment and no version history included), so exporting `staging` can never leak `prod`, and a leaked bundle exposes only the values that were current at export time.
+
+### Version History
+
+Every variable keeps its full value history (`Secret` and `Plain` alike), bounded by `max_versions`. This is a deliberate widening of what the vault passphrase protects: previously, compromising the passphrase exposed only current values; now it exposes each variable's recent history too. This does not create a new trust boundary -- the passphrase was already the single point of failure for current secrets -- but it does increase what a single compromise reveals. See [Security: Environments, and full version history for Secret values](security.md#environments-and-full-version-history-for-secret-values) for the full reasoning.
 
 ### AI Coding Assistants and Local Files
 
@@ -119,6 +124,7 @@ The current project does not aim to provide:
 Known areas for improvement:
 
 - deserialized vault contents (`Variable.value` and similar) are not zeroized in memory once loaded, only the passphrase and transient encrypt/decrypt buffers are -- see `docs/tech-debt.md`
+- full per-variable version history means a compromised vault passphrase now exposes a `Secret`'s recent past values, not only its current one (bounded by `max_versions`) -- see [Version History](#version-history)
 - no `auth rotate` or `auth generate` yet
 - backup rotation keeps three generations (`vault.age.bak`, `.bak.1`, `.bak.2`); no configurable retention count yet
 

@@ -59,6 +59,22 @@ pub enum EnvltError {
         /// Missing project name.
         name: String,
     },
+    /// Requested environment was not found in the project.
+    #[error("environment '{name}' was not found in project '{project}'")]
+    EnvironmentNotFound {
+        /// Project the environment was looked up in.
+        project: String,
+        /// Missing environment name.
+        name: String,
+    },
+    /// Attempted to create an environment that already exists.
+    #[error("environment '{name}' already exists in project '{project}'")]
+    EnvironmentAlreadyExists {
+        /// Project the environment belongs to.
+        project: String,
+        /// Existing environment name.
+        name: String,
+    },
     /// Attempted to create a project that already exists.
     #[error("project '{name}' already exists")]
     ProjectAlreadyExists {

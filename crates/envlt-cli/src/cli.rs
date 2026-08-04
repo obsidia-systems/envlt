@@ -1,8 +1,34 @@
-use std::io::{self, IsTerminal, Write};
+use std::{
+    io::{self, IsTerminal, Write},
+    path::Path,
+};
 
 use anyhow::{anyhow, Result};
-use envlt_core::{load_stored_passphrase, VarType, VaultStore};
+use envlt_core::{
+    link::find_project_link, load_stored_passphrase, AppService, VarType, VaultStore,
+};
 use zeroize::Zeroizing;
+
+/// Resolve the environment to operate on: an explicit `--env` flag takes
+/// priority, then the environment recorded on the nearest `.envlt-link`
+/// (if any), then `envlt_core::DEFAULT_ENVIRONMENT`.
+pub fn resolve_environment(
+    explicit_environment: Option<&str>,
+    current_dir: Option<&Path>,
+) -> Result<String> {
+    let current_dir = match current_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => std::env::current_dir()?,
+    };
+
+    let link_environment =
+        find_project_link(&current_dir)?.and_then(|(_link_dir, _project, environment)| environment);
+
+    Ok(AppService::resolve_environment_name(
+        explicit_environment,
+        link_environment.as_deref(),
+    ))
+}
 
 /// A passphrase held only long enough to authenticate, zeroized on drop so
 /// it doesn't linger in memory for the rest of the process's lifetime.

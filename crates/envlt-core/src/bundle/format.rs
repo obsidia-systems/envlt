@@ -17,7 +17,12 @@ use crate::{
 /// Magic bytes at the start of every `.evlt` bundle.
 pub const BUNDLE_MAGIC: [u8; 4] = *b"ENVL";
 /// Current bundle format version.
-pub const BUNDLE_VERSION: u8 = 1;
+///
+/// Bumped from `1` to `2` when environments were introduced: a bundle now
+/// carries exactly one environment (see [`encrypt_project_bundle`]) rather
+/// than a project's flat variable map, so v1 bundles can no longer be
+/// decoded and are rejected outright by [`decode_archive`].
+pub const BUNDLE_VERSION: u8 = 2;
 /// Length of the ChaCha20-Poly1305 nonce in bytes.
 pub const BUNDLE_NONCE_LEN: usize = 12;
 /// Length of the ChaCha20-Poly1305 authentication tag in bytes.
@@ -51,6 +56,8 @@ fn legacy_kdf_p() -> u32 {
 pub struct BundleHeader {
     /// Name of the exported project.
     pub project: String,
+    /// Name of the single environment this bundle carries.
+    pub environment: String,
     /// UTC timestamp when the bundle was created.
     pub exported_at: DateTime<Utc>,
     /// envlt version that produced the bundle.
@@ -159,8 +166,15 @@ pub fn decode_archive(bytes: &[u8]) -> Result<BundleArchive> {
 }
 
 /// Encrypt a project into a portable `.evlt` bundle.
+///
+/// `project` must contain exactly the single environment named
+/// `environment_name` -- callers (see `AppService::export_project_bundle`)
+/// build a "shadow" project shaped this way rather than exporting a
+/// project's full multi-environment state, so that sharing one
+/// environment's bundle can never leak another's.
 pub fn encrypt_project_bundle(
     project: &Project,
+    environment_name: &str,
     bundle_passphrase: &str,
     envlt_version: &str,
 ) -> Result<Vec<u8>> {
@@ -172,6 +186,7 @@ pub fn encrypt_project_bundle(
     let kdf_params = Params::recommended();
     let header = BundleHeader {
         project: project.name.clone(),
+        environment: environment_name.to_owned(),
         exported_at: Utc::now(),
         envlt_version: envlt_version.to_owned(),
         kdf_salt_b64: STANDARD_NO_PAD.encode(salt),
@@ -235,6 +250,12 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
     if project.name != archive.header.project {
         return Err(EnvltError::InvalidBundlePayload);
     }
+    if !project
+        .environments
+        .contains_key(&archive.header.environment)
+    {
+        return Err(EnvltError::InvalidBundlePayload);
+    }
 
     Ok(project)
 }
@@ -257,7 +278,7 @@ mod tests {
         BundleArchive, BundleHeader, BUNDLE_MAGIC,
     };
     use crate::error::EnvltError;
-    use crate::vault::Project;
+    use crate::vault::{Environment, Project, Variable};
     use chrono::Utc;
 
     #[test]
@@ -265,6 +286,7 @@ mod tests {
         let archive = BundleArchive {
             header: BundleHeader {
                 project: "api-payments".to_owned(),
+                environment: "local".to_owned(),
                 exported_at: Utc::now(),
                 envlt_version: "0.1.0".to_owned(),
                 kdf_salt_b64: "salt".to_owned(),
@@ -287,7 +309,7 @@ mod tests {
     fn decode_rejects_invalid_magic() {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(b"NOPE");
-        bytes.push(1);
+        bytes.push(2);
         bytes.extend_from_slice(&0_u16.to_be_bytes());
         bytes.extend_from_slice(&[0_u8; 12]);
         bytes.extend_from_slice(&[0_u8; 16]);
@@ -309,8 +331,27 @@ mod tests {
         assert!(matches!(
             error,
             EnvltError::UnsupportedBundleVersion {
-                expected: 1,
+                expected: 2,
                 actual: 99
+            }
+        ));
+    }
+
+    #[test]
+    fn decode_rejects_a_pre_environments_v1_bundle() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&BUNDLE_MAGIC);
+        bytes.push(1);
+        bytes.extend_from_slice(&0_u16.to_be_bytes());
+        bytes.extend_from_slice(&[0_u8; 12]);
+        bytes.extend_from_slice(&[0_u8; 16]);
+
+        let error = decode_archive(&bytes).expect_err("v1 bundle rejected");
+        assert!(matches!(
+            error,
+            EnvltError::UnsupportedBundleVersion {
+                expected: 2,
+                actual: 1
             }
         ));
     }
@@ -318,21 +359,24 @@ mod tests {
     #[test]
     fn encrypted_bundle_roundtrip_restores_project() {
         let mut project = Project::new("api-auth", None);
-        project.variables.insert(
+        let mut environment = Environment::new("local");
+        environment.variables.insert(
             "JWT_SECRET".to_owned(),
-            crate::vault::Variable::new("JWT_SECRET", "super-secret"),
+            Variable::new("JWT_SECRET", "super-secret"),
         );
+        project.environments.insert("local".to_owned(), environment);
 
-        let bundle =
-            encrypt_project_bundle(&project, "bundle-password", "0.1.0").expect("bundle encode");
+        let bundle = encrypt_project_bundle(&project, "local", "bundle-password", "0.1.0")
+            .expect("bundle encode");
         let restored = decrypt_project_bundle(&bundle, "bundle-password").expect("bundle decode");
 
         assert_eq!(restored.name, project.name);
         assert_eq!(
             restored
-                .variables
-                .get("JWT_SECRET")
-                .map(|var| var.value.as_str()),
+                .environments
+                .get("local")
+                .and_then(|environment| environment.variables.get("JWT_SECRET"))
+                .map(|variable| variable.value()),
             Some("super-secret")
         );
     }
@@ -340,19 +384,36 @@ mod tests {
     #[test]
     fn encrypted_bundle_rejects_wrong_password() {
         let project = Project::new("api-auth", None);
-        let bundle =
-            encrypt_project_bundle(&project, "bundle-password", "0.1.0").expect("bundle encode");
+        let bundle = encrypt_project_bundle(&project, "local", "bundle-password", "0.1.0")
+            .expect("bundle encode");
 
         let error = decrypt_project_bundle(&bundle, "wrong-password").expect_err("wrong pass");
         assert!(matches!(error, EnvltError::BundleDecryptFailed));
     }
 
+    #[test]
+    fn decrypt_rejects_a_payload_missing_the_header_environment() {
+        // A tampered or corrupted bundle whose payload doesn't actually
+        // contain the environment its own header claims to carry.
+        let mut project = Project::new("api-auth", None);
+        project
+            .environments
+            .insert("staging".to_owned(), Environment::new("staging"));
+
+        let bundle = encrypt_project_bundle(&project, "local", "bundle-password", "0.1.0")
+            .expect("bundle encode");
+
+        let error = decrypt_project_bundle(&bundle, "bundle-password").expect_err("mismatch");
+        assert!(matches!(error, EnvltError::InvalidBundlePayload));
+    }
+
     /// Bundles written before KDF params were recorded in the header must
     /// keep decrypting with the exact scrypt settings they were encrypted
     /// with, even though `Params::recommended()` may change in a future
-    /// scrypt release. Simulates such a legacy bundle by hand-encoding a
-    /// header without `kdf_log_n`/`kdf_r`/`kdf_p` and relying on `serde`
-    /// defaults to fill in the historical values (log_n=17, r=8, p=1).
+    /// scrypt release. Simulates such a legacy header (from early in the v2
+    /// bundle format's lifetime) by hand-encoding one without
+    /// `kdf_log_n`/`kdf_r`/`kdf_p` and relying on `serde` defaults to fill
+    /// in the historical values (log_n=17, r=8, p=1).
     #[test]
     fn decrypt_falls_back_to_legacy_kdf_params_for_headers_without_them() {
         use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
@@ -362,7 +423,10 @@ mod tests {
         };
         use scrypt::{scrypt, Params};
 
-        let project = Project::new("legacy-project", None);
+        let mut project = Project::new("legacy-project", None);
+        project
+            .environments
+            .insert("local".to_owned(), Environment::new("local"));
         let plaintext = toml::to_string(&project).expect("serialize project");
 
         let salt = [3_u8; super::BUNDLE_SALT_LEN];
@@ -381,8 +445,9 @@ mod tests {
         // encrypt_project_bundle produced before this field was added.
         let header_json = serde_json::json!({
             "project": "legacy-project",
+            "environment": "local",
             "exported_at": Utc::now().to_rfc3339(),
-            "envlt_version": "0.2.2",
+            "envlt_version": "0.3.0",
             "kdf_salt_b64": STANDARD_NO_PAD.encode(salt),
         })
         .to_string();
@@ -390,7 +455,7 @@ mod tests {
 
         let mut bundle = Vec::new();
         bundle.extend_from_slice(&BUNDLE_MAGIC);
-        bundle.push(1);
+        bundle.push(2);
         bundle.extend_from_slice(&(header_bytes.len() as u16).to_be_bytes());
         bundle.extend_from_slice(&header_bytes);
         bundle.extend_from_slice(&nonce);

@@ -1612,13 +1612,13 @@ fn project_history_shows_all_events() {
 }
 
 #[test]
-fn config_toml_overrides_the_default_history_limit() {
+fn config_toml_overrides_the_default_max_versions() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
     let env_path = project_dir.path().join(".env");
 
     fs::write(&env_path, "COUNTER=0\n").expect("write env");
-    fs::write(home.path().join("config.toml"), "history_limit = 2\n").expect("write config");
+    fs::write(home.path().join("config.toml"), "max_versions = 2\n").expect("write config");
 
     cli(&home).arg("init").assert().success();
     cli(&home)
@@ -1639,8 +1639,9 @@ fn config_toml_overrides_the_default_history_limit() {
             .success();
     }
 
-    // Creation + 3 updates = 4 events; history_limit=2 from config.toml
-    // should keep only the most recent 2.
+    // COUNTER holds 4 values over its lifetime (0, 1, 2, 3); max_versions=2
+    // from config.toml keeps only the most recent 2, so history shows just
+    // the Created+Updated pair for that trimmed window.
     cli(&home)
         .args([
             "history",
@@ -1660,7 +1661,7 @@ fn config_toml_overrides_the_default_history_limit() {
         .args(["doctor", "--format", "raw"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("ok\tconfig\thistory_limit=2"))
+        .stdout(predicate::str::contains("ok\tconfig\tmax_versions=2"))
         .stdout(predicate::str::contains("from config.toml"));
 }
 
@@ -1876,4 +1877,205 @@ fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
         .failure()
         .stdout(predicate::str::contains(CANARY).not())
         .stderr(predicate::str::contains(CANARY).not());
+}
+
+#[test]
+fn env_add_and_list_shows_environments() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-list-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "env",
+            "list",
+            "--project",
+            "env-list-project",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("local"));
+
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "env-list-project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("staging"));
+
+    cli(&home)
+        .args([
+            "env",
+            "list",
+            "--project",
+            "env-list-project",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("local"))
+        .stdout(predicate::str::contains("staging"));
+
+    // Adding a duplicate environment name is an error.
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "env-list-project"])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn set_env_scopes_a_variable_to_that_environment() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-scope-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "env-scope-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "env-scope-project",
+            "--env",
+            "staging",
+            "PORT=9000",
+        ])
+        .assert()
+        .success();
+
+    // The default ("local") environment is untouched by the --env staging set.
+    cli(&home)
+        .args(["vars", "--project", "env-scope-project", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tplain\t3000"));
+
+    cli(&home)
+        .args([
+            "vars",
+            "--project",
+            "env-scope-project",
+            "--env",
+            "staging",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tplain\t9000"));
+}
+
+#[test]
+fn diff_other_env_compares_environments_within_the_same_project() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "diff-env-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "diff-env-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "diff-env-project",
+            "--env",
+            "staging",
+            "PORT=9000",
+        ])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "diff",
+            "--project",
+            "diff-env-project",
+            "--other-env",
+            "staging",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("value_changed\tPORT"));
+}
+
+#[test]
+fn import_rejects_an_old_bundle_version_with_a_friendly_message() {
+    let home = TempDir::new().expect("tempdir");
+    let bundle_path = home.path().join("old.evlt");
+
+    // Hand-crafted bundle in the pre-environments v1 layout: magic + version
+    // byte 1 + an empty header + a zeroed nonce and tag. Long enough to pass
+    // decode_archive's length check, so the version check is what actually
+    // rejects it.
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"ENVL");
+    bytes.push(1);
+    bytes.extend_from_slice(&0_u16.to_be_bytes());
+    bytes.extend_from_slice(&[0_u8; 12]);
+    bytes.extend_from_slice(&[0_u8; 16]);
+    fs::write(&bundle_path, &bytes).expect("write fake v1 bundle");
+
+    cli(&home).arg("init").assert().success();
+
+    let expected_message = "re-export it with the current envlt version";
+
+    cli(&home)
+        .args(["import", bundle_path.to_str().expect("utf8 path")])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(expected_message));
+
+    cli(&home)
+        .args([
+            "import",
+            bundle_path.to_str().expect("utf8 path"),
+            "--inspect",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(expected_message));
+
+    cli(&home)
+        .args([
+            "import",
+            bundle_path.to_str().expect("utf8 path"),
+            "--dry-run",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(expected_message));
 }

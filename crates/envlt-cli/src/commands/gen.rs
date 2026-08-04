@@ -6,7 +6,7 @@ use serde_json::to_string_pretty;
 
 use crate::cli::{
     print_success, read_gen_project, read_gen_save_choice, read_gen_set_key, read_gen_type,
-    read_passphrase,
+    read_passphrase, resolve_environment,
 };
 use crate::output::{render_raw_rows, render_table, OutputFormat};
 
@@ -21,6 +21,7 @@ pub struct GenOptions<'a> {
     pub show: bool,
     pub set_key: &'a Option<String>,
     pub project: &'a Option<String>,
+    pub env: &'a Option<String>,
     pub silent: bool,
     pub list_format: Option<OutputFormat>,
 }
@@ -102,6 +103,7 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
     match save_target {
         Some((key, project)) => {
             let passphrase = read_passphrase(service.store(), false)?;
+            let environment = resolve_environment(options.env.as_deref(), None)?;
             let var_type = if options.custom_mode_enabled() {
                 None
             } else {
@@ -110,7 +112,14 @@ pub fn run_gen(service: &AppService, options: GenOptions<'_>) -> Result<ExitCode
                     .expect("non-custom mode always resolves a generator type");
                 Some(GenType::parse(gen_type)?.default_var_type())
             };
-            service.set_variable(&project, &key, &generated_value, var_type, &passphrase)?;
+            service.set_variable(
+                &project,
+                &environment,
+                &key,
+                &generated_value,
+                var_type,
+                &passphrase,
+            )?;
             if options.silent {
                 // Explicit silent mode suppresses all output, even after a successful save.
             } else if options.show {

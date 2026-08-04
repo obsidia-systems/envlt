@@ -419,7 +419,9 @@ updated_at = "2024-01-01T00:00:00Z"
 
         assert_eq!(migrated_from, Some(1));
         assert_eq!(vault.version, VAULT_VERSION);
-        assert!(vault.projects["demo"].activity_log.is_empty());
+        assert!(vault.projects["demo"].environments["local"]
+            .variables
+            .is_empty());
 
         let backup_path = store.root_dir().join("vault.v1.pre-migration.age");
         let backed_up = fs::read(&backup_path).expect("pre-migration backup exists");

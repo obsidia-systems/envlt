@@ -5,17 +5,19 @@ use chrono::Utc;
 use envlt_core::{AppService, VarType};
 use serde_json::to_string_pretty;
 
-use crate::cli::read_passphrase;
+use crate::cli::{read_passphrase, resolve_environment};
 use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_vars(
     service: &AppService,
     project: &Option<String>,
+    env: &Option<String>,
     format: OutputFormat,
 ) -> Result<ExitCode> {
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
-    let variables = service.project_variable_views(&project, &passphrase)?;
+    let environment = resolve_environment(env.as_deref(), None)?;
+    let variables = service.project_variable_views(&project, &environment, &passphrase)?;
 
     if variables.is_empty() {
         match format {

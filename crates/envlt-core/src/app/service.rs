@@ -13,83 +13,85 @@ use crate::{
     gen::{generate_value, GenType},
     link::{find_project_link, remove_project_link, write_project_link},
     vault::{
-        infer_var_type, ActivityAction, ActivityEvent, Project, VarType, Variable, VaultStore,
+        infer_var_type, synthesize_variable_events, ActivityEvent, Environment, Project, VarType,
+        Variable, VaultStore, DEFAULT_ENVIRONMENT,
     },
 };
 
+/// Facade over a [`VaultStore`] exposing project, environment, and variable
+/// operations to the CLI.
 #[derive(Debug, Clone)]
-/// AppService.
 pub struct AppService {
     store: VaultStore,
 }
 
+/// A resolved set of variables ready to inject into a child process.
 #[derive(Debug, Clone)]
-/// RunEnvironment.
 pub struct RunEnvironment {
-    /// variables.
+    /// Variable name to current value.
     pub variables: BTreeMap<String, String>,
 }
 
+/// One variable's current state, as displayed by `envlt vars`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// VariableView.
 pub struct VariableView {
-    /// key.
+    /// Variable key.
     pub key: String,
-    /// value.
+    /// Current value.
     pub value: String,
-    /// var_type.
+    /// Current classification.
     pub var_type: VarType,
-    /// updated_at.
+    /// When the current value was written.
     pub updated_at: DateTime<Utc>,
 }
 
+/// Difference between a project's stored variables and an `.env.example`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// ExampleDiff.
 pub struct ExampleDiff {
-    /// project.
+    /// Project the comparison was run against.
     pub project: String,
-    /// example_path.
+    /// Path to the example file.
     pub example_path: PathBuf,
-    /// missing_in_vault.
+    /// Keys present in the example but missing from the vault.
     pub missing_in_vault: Vec<String>,
-    /// extra_in_vault.
+    /// Keys present in the vault but not in the example.
     pub extra_in_vault: Vec<String>,
-    /// shared_keys.
+    /// Keys present in both.
     pub shared_keys: Vec<String>,
 }
 
+/// Difference between two environments' variables.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// ProjectDiff.
 pub struct ProjectDiff {
-    /// left_project.
+    /// Left-hand project name.
     pub left_project: String,
-    /// right_project.
+    /// Right-hand project name.
     pub right_project: String,
-    /// only_in_left.
+    /// Keys only present on the left.
     pub only_in_left: Vec<String>,
-    /// only_in_right.
+    /// Keys only present on the right.
     pub only_in_right: Vec<String>,
-    /// shared_keys.
+    /// Keys present on both sides.
     pub shared_keys: Vec<String>,
-    /// changed_values.
+    /// Shared keys whose values differ.
     pub changed_values: Vec<String>,
-    /// changed_types.
+    /// Shared keys whose classification differs.
     pub changed_types: Vec<String>,
 }
 
+/// Severity of a single [`DoctorReport`] check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// DiagnosticSeverity.
 pub enum DiagnosticSeverity {
-    /// Ok.
+    /// Everything looks fine.
     Ok,
-    /// Warn.
+    /// Worth a look, but not blocking.
     Warn,
-    /// Error.
+    /// Something is broken.
     Error,
 }
 
 impl DiagnosticSeverity {
-    /// fn as_str(self) -> &'static str {.
+    /// The lowercase string used when rendering this severity.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Ok => "ok",
@@ -99,35 +101,36 @@ impl DiagnosticSeverity {
     }
 }
 
+/// One diagnostic line in a [`DoctorReport`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// DiagnosticCheck.
 pub struct DiagnosticCheck {
-    /// code.
+    /// Short machine-readable identifier, e.g. `"vault"` or `"link"`.
     pub code: String,
-    /// severity.
+    /// How serious this check's finding is.
     pub severity: DiagnosticSeverity,
-    /// detail.
+    /// Human-readable detail.
     pub detail: String,
 }
 
+/// Full result of `envlt doctor`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// DoctorReport.
 pub struct DoctorReport {
-    /// checks.
+    /// All checks that were run, in the order they ran.
     pub checks: Vec<DiagnosticCheck>,
 }
 
+/// Result of removing a project, including whether a matching
+/// `.envlt-link` was cleaned up alongside it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// RemoveProjectResult.
 pub struct RemoveProjectResult {
-    /// project.
+    /// Name of the removed project.
     pub project: String,
-    /// removed_link.
+    /// Whether a `.envlt-link` pointing at it was also removed.
     pub removed_link: bool,
 }
 
 impl DoctorReport {
-    /// fn ok_count(&self) -> usize {.
+    /// Number of checks that passed.
     pub fn ok_count(&self) -> usize {
         self.checks
             .iter()
@@ -135,7 +138,7 @@ impl DoctorReport {
             .count()
     }
 
-    /// fn warn_count(&self) -> usize {.
+    /// Number of checks that warned.
     pub fn warn_count(&self) -> usize {
         self.checks
             .iter()
@@ -143,7 +146,7 @@ impl DoctorReport {
             .count()
     }
 
-    /// fn error_count(&self) -> usize {.
+    /// Number of checks that failed.
     pub fn error_count(&self) -> usize {
         self.checks
             .iter()
@@ -151,30 +154,91 @@ impl DoctorReport {
             .count()
     }
 
-    /// fn has_errors(&self) -> bool {.
+    /// Whether any check failed.
     pub fn has_errors(&self) -> bool {
         self.error_count() > 0
     }
 }
 
+/// Look up an environment by name, or `EnvironmentNotFound`.
+fn require_environment<'a>(
+    project: &'a Project,
+    project_name: &str,
+    environment_name: &str,
+) -> Result<&'a Environment> {
+    project
+        .environment(environment_name)
+        .ok_or_else(|| EnvltError::EnvironmentNotFound {
+            project: project_name.to_owned(),
+            name: environment_name.to_owned(),
+        })
+}
+
+/// Look up an environment by name mutably, or `EnvironmentNotFound`.
+fn require_environment_mut<'a>(
+    project: &'a mut Project,
+    project_name: &str,
+    environment_name: &str,
+) -> Result<&'a mut Environment> {
+    project
+        .environment_mut(environment_name)
+        .ok_or_else(|| EnvltError::EnvironmentNotFound {
+            project: project_name.to_owned(),
+            name: environment_name.to_owned(),
+        })
+}
+
+/// Merge `incoming`'s variables into `target`, recording a new version for
+/// each variable that is new, changed, or reviving a deleted one, so the
+/// merge behaves like repeated `set_variable` calls rather than a silent
+/// overwrite that would discard `target`'s existing history.
+fn merge_environment(target: &mut Environment, incoming: &Environment, max_versions: usize) {
+    for (key, incoming_variable) in &incoming.variables {
+        match target.variables.get_mut(key) {
+            Some(existing_variable) => {
+                let value_changed = existing_variable.value() != incoming_variable.value();
+                let type_changed = existing_variable.var_type() != incoming_variable.var_type();
+                if value_changed || type_changed || existing_variable.is_deleted() {
+                    existing_variable.record(
+                        incoming_variable.value(),
+                        incoming_variable.var_type(),
+                        max_versions,
+                    );
+                }
+            }
+            None => {
+                target.variables.insert(
+                    key.clone(),
+                    Variable::new_with_type(
+                        incoming_variable.value().to_owned(),
+                        incoming_variable.var_type(),
+                    ),
+                );
+            }
+        }
+    }
+    target.touch();
+}
+
 impl AppService {
-    /// fn new(store.
+    /// Wrap a [`VaultStore`] in an [`AppService`].
     pub fn new(store: VaultStore) -> Self {
         Self { store }
     }
 
-    /// fn store(&self) -> &VaultStore {.
+    /// The underlying vault store.
     pub fn store(&self) -> &VaultStore {
         &self.store
     }
 
-    /// fn init_vault(&self, passphrase.
+    /// Initialize a new, empty vault protected by `passphrase`.
     pub fn init_vault(&self, passphrase: &str) -> Result<()> {
         let _lock = self.store.lock()?;
         self.store.initialize(passphrase)
     }
 
-    /// fn add_project_from_env_file(.
+    /// Create a project from the variables in an `.env` file, seeded into
+    /// [`DEFAULT_ENVIRONMENT`].
     pub fn add_project_from_env_file(
         &self,
         project_name: &str,
@@ -186,7 +250,8 @@ impl AppService {
         self.add_project_from_variables(project_name, variables, project_path, passphrase)
     }
 
-    /// fn add_project_from_env_str(.
+    /// Create a project from an in-memory `.env`-formatted string, seeded
+    /// into [`DEFAULT_ENVIRONMENT`].
     pub fn add_project_from_env_str(
         &self,
         project_name: &str,
@@ -199,7 +264,8 @@ impl AppService {
         self.add_project_from_variables(project_name, variables, project_path, passphrase)
     }
 
-    /// fn missing_example_inputs(&self, example_path.
+    /// Keys in `example_path` left empty, paired with their inferred type,
+    /// i.e. the inputs a caller must supply to satisfy the example.
     pub fn missing_example_inputs(&self, example_path: &Path) -> Result<Vec<(String, VarType)>> {
         let variables = parse_env_file(example_path)?;
         Ok(variables
@@ -223,7 +289,6 @@ impl AppService {
         passphrase: &str,
     ) -> Result<()> {
         let _lock = self.store.lock()?;
-        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -233,25 +298,17 @@ impl AppService {
         }
 
         let mut project = Project::new(project_name, project_path);
-        project.variables = variables
+        let mut environment = Environment::new(DEFAULT_ENVIRONMENT);
+        environment.variables = variables
             .into_iter()
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
-                let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                project.push_activity_event(
-                    ActivityEvent::new(
-                        ActivityAction::VariableCreated,
-                        &key,
-                        None,
-                        new_value,
-                        None,
-                        None,
-                    ),
-                    history_limit,
-                );
                 (key, variable)
             })
             .collect();
+        project
+            .environments
+            .insert(DEFAULT_ENVIRONMENT.to_owned(), environment);
         project.touch();
         vault.projects.insert(project_name.to_owned(), project);
         vault.touch();
@@ -259,7 +316,8 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
-    /// fn add_project_from_example(.
+    /// Create a project from an `.env.example` template, filling blank
+    /// entries from `overrides`, seeded into [`DEFAULT_ENVIRONMENT`].
     pub fn add_project_from_example(
         &self,
         project_name: &str,
@@ -286,7 +344,6 @@ impl AppService {
             .collect::<Result<BTreeMap<_, _>>>()?;
 
         let _lock = self.store.lock()?;
-        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
 
         if vault.projects.contains_key(project_name) {
@@ -296,25 +353,17 @@ impl AppService {
         }
 
         let mut project = Project::new(project_name, project_path);
-        project.variables = resolved_variables
+        let mut environment = Environment::new(DEFAULT_ENVIRONMENT);
+        environment.variables = resolved_variables
             .into_iter()
             .map(|(key, value)| {
                 let variable = Variable::new(&key, value);
-                let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                project.push_activity_event(
-                    ActivityEvent::new(
-                        ActivityAction::VariableCreated,
-                        &key,
-                        None,
-                        new_value,
-                        None,
-                        None,
-                    ),
-                    history_limit,
-                );
                 (key, variable)
             })
             .collect();
+        project
+            .environments
+            .insert(DEFAULT_ENVIRONMENT.to_owned(), environment);
         project.touch();
         vault.projects.insert(project_name.to_owned(), project);
         vault.touch();
@@ -322,12 +371,14 @@ impl AppService {
         self.store.save(&vault, passphrase)
     }
 
-    /// fn write_project_link(&self, project_root.
+    /// Write a `.envlt-link` in `project_root` pointing at `project_name`.
     pub fn write_project_link(&self, project_root: &Path, project_name: &str) -> Result<()> {
         write_project_link(project_root, project_name)
     }
 
-    /// fn remove_project(.
+    /// Remove a project from the vault and, if `current_dir` (or the
+    /// project's own recorded path) has a matching `.envlt-link`, remove
+    /// that too.
     pub fn remove_project(
         &self,
         project_name: &str,
@@ -355,7 +406,8 @@ impl AppService {
         })
     }
 
-    /// fn resolve_project_name(.
+    /// Resolve the project to operate on: an explicit `--project` flag
+    /// takes priority, otherwise fall back to the nearest `.envlt-link`.
     pub fn resolve_project_name(
         &self,
         explicit_project: Option<&str>,
@@ -371,22 +423,36 @@ impl AppService {
         };
 
         find_project_link(&current_dir)?
-            .map(|(_link_dir, project)| project)
+            .map(|(_link_dir, project, _environment)| project)
             .ok_or(EnvltError::ProjectResolutionFailed { path: current_dir })
     }
 
-    /// fn list_projects(&self, passphrase.
+    /// Resolve the environment to operate on: an explicit `--env` flag
+    /// takes priority, then the environment recorded on `.envlt-link`,
+    /// then [`DEFAULT_ENVIRONMENT`]. Existence is validated at the point of
+    /// use, not here.
+    pub fn resolve_environment_name(
+        explicit: Option<&str>,
+        link_environment: Option<&str>,
+    ) -> String {
+        explicit
+            .or(link_environment)
+            .unwrap_or(DEFAULT_ENVIRONMENT)
+            .to_owned()
+    }
+
+    /// List every project in the vault.
     pub fn list_projects(&self, passphrase: &str) -> Result<Vec<Project>> {
         let vault = self.store.load(passphrase)?;
         Ok(vault.projects.into_values().collect())
     }
 
-    /// fn verify_vault_access(&self, passphrase.
+    /// Confirm `passphrase` unlocks the vault, without returning its data.
     pub fn verify_vault_access(&self, passphrase: &str) -> Result<()> {
         self.store.load(passphrase).map(|_| ())
     }
 
-    /// fn project_snapshot(&self, project_name.
+    /// A full copy of one project, all environments included.
     pub fn project_snapshot(&self, project_name: &str, passphrase: &str) -> Result<Project> {
         let vault = self.store.load(passphrase)?;
         vault
@@ -398,10 +464,58 @@ impl AppService {
             })
     }
 
-    /// Return the full activity log for a project.
+    /// Add a new, empty environment to a project.
+    pub fn add_environment(
+        &self,
+        project_name: &str,
+        environment_name: &str,
+        passphrase: &str,
+    ) -> Result<()> {
+        let _lock = self.store.lock()?;
+        let mut vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get_mut(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+
+        if project.environments.contains_key(environment_name) {
+            return Err(EnvltError::EnvironmentAlreadyExists {
+                project: project_name.to_owned(),
+                name: environment_name.to_owned(),
+            });
+        }
+
+        project.environments.insert(
+            environment_name.to_owned(),
+            Environment::new(environment_name),
+        );
+        project.touch();
+        vault.touch();
+        self.store.save(&vault, passphrase)
+    }
+
+    /// List a project's environment names.
+    pub fn list_environments(&self, project_name: &str, passphrase: &str) -> Result<Vec<String>> {
+        let vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        Ok(project.environments.keys().cloned().collect())
+    }
+
+    /// Reconstruct the full change history for every variable in one
+    /// environment, oldest first.
     pub fn project_activity_log(
         &self,
         project_name: &str,
+        environment_name: &str,
         passphrase: &str,
     ) -> Result<Vec<ActivityEvent>> {
         let vault = self.store.load(passphrase)?;
@@ -412,13 +526,22 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
-        Ok(project.activity_log.clone())
+        let environment = require_environment(project, project_name, environment_name)?;
+
+        let mut events: Vec<ActivityEvent> = environment
+            .variables
+            .iter()
+            .flat_map(|(key, variable)| synthesize_variable_events(key, variable))
+            .collect();
+        events.sort_by_key(|event| event.timestamp);
+        Ok(events)
     }
 
-    /// Return the activity log for a variable, filtered from the project's log.
+    /// Reconstruct the change history for a single variable.
     pub fn variable_history(
         &self,
         project_name: &str,
+        environment_name: &str,
         key: &str,
         passphrase: &str,
     ) -> Result<Vec<ActivityEvent>> {
@@ -430,26 +553,68 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
-        Ok(project
-            .activity_log
-            .iter()
-            .filter(|event| event.variable_key == key)
-            .cloned()
-            .collect())
+        let environment = require_environment(project, project_name, environment_name)?;
+
+        Ok(environment
+            .variables
+            .get(key)
+            .map(|variable| synthesize_variable_events(key, variable))
+            .unwrap_or_default())
     }
 
-    /// fn export_project_bundle(.
+    /// Export one environment as an encrypted, portable `.evlt` bundle.
+    ///
+    /// The bundle carries a flattened copy of the environment (current
+    /// values only, no version history, no soft-deleted variables) so that
+    /// sharing it can't leak more than the environment's present state.
     pub fn export_project_bundle(
         &self,
         project_name: &str,
+        environment_name: &str,
         vault_passphrase: &str,
         bundle_passphrase: &str,
     ) -> Result<Vec<u8>> {
-        let project = self.project_snapshot(project_name, vault_passphrase)?;
-        encrypt_project_bundle(&project, bundle_passphrase, env!("CARGO_PKG_VERSION"))
+        let vault = self.store.load(vault_passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        let environment = require_environment(project, project_name, environment_name)?;
+
+        let mut shadow = Project::new(project_name, project.path.clone());
+        let mut shadow_environment = Environment::new(environment_name);
+        shadow_environment.variables = environment
+            .variables
+            .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
+            .map(|(key, variable)| {
+                (
+                    key.clone(),
+                    Variable::new_with_type(variable.value().to_owned(), variable.var_type()),
+                )
+            })
+            .collect();
+        shadow
+            .environments
+            .insert(environment_name.to_owned(), shadow_environment);
+
+        encrypt_project_bundle(
+            &shadow,
+            environment_name,
+            bundle_passphrase,
+            env!("CARGO_PKG_VERSION"),
+        )
     }
 
-    /// fn import_project_bundle(.
+    /// Import a bundle produced by [`AppService::export_project_bundle`].
+    ///
+    /// If the project already exists, its matching environment (created if
+    /// absent) is merged with the incoming one via [`merge_environment`],
+    /// preserving existing version history rather than overwriting it.
+    /// Otherwise a new project is created holding just that environment.
     pub fn import_project_bundle(
         &self,
         bundle_bytes: &[u8],
@@ -457,110 +622,59 @@ impl AppService {
         bundle_passphrase: &str,
         overwrite_existing: bool,
     ) -> Result<String> {
-        let mut project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
+        let bundle_project = decrypt_project_bundle(bundle_bytes, bundle_passphrase)?;
+        let project_name = bundle_project.name.clone();
+        let (environment_name, bundle_environment) = bundle_project
+            .environments
+            .into_iter()
+            .next()
+            .ok_or(EnvltError::InvalidBundlePayload)?;
+
         let _lock = self.store.lock()?;
-        let history_limit = self.store.config()?.history_limit;
+        let max_versions = self.store.config()?.max_versions;
         let mut vault = self.store.load(vault_passphrase)?;
 
-        let project_name = project.name.clone();
+        match vault.projects.get_mut(&project_name) {
+            Some(existing) => {
+                if !overwrite_existing {
+                    return Err(EnvltError::BundleProjectAlreadyExists { name: project_name });
+                }
 
-        if let Some(existing) = vault.projects.get(&project_name) {
-            if !overwrite_existing {
-                return Err(EnvltError::BundleProjectAlreadyExists { name: project_name });
+                let environment = existing
+                    .environments
+                    .entry(environment_name.clone())
+                    .or_insert_with(|| Environment::new(environment_name.clone()));
+                merge_environment(environment, &bundle_environment, max_versions);
+                existing.touch();
             }
-
-            // Preserve existing activity log and append import events.
-            project.activity_log = existing.activity_log.clone();
-
-            let import_events: Vec<ActivityEvent> = project
-                .variables
-                .iter()
-                .flat_map(|(key, variable)| match existing.variables.get(key) {
-                    Some(old_var) => {
-                        let mut events = Vec::new();
-                        if old_var.value != variable.value {
-                            let old_value =
-                                ActivityEvent::masked_value(&old_var.value, old_var.var_type);
-                            let new_value =
-                                ActivityEvent::masked_value(&variable.value, variable.var_type);
-                            events.push(ActivityEvent::new(
-                                ActivityAction::VariableUpdated,
-                                key,
-                                old_value,
-                                new_value,
-                                None,
-                                None,
-                            ));
-                        }
-                        if old_var.var_type != variable.var_type {
-                            events.push(ActivityEvent::new(
-                                ActivityAction::VariableTypeChanged,
-                                key,
-                                None,
-                                None,
-                                Some(old_var.var_type),
-                                Some(variable.var_type),
-                            ));
-                        }
-                        events
-                    }
-                    None => {
-                        let new_value =
-                            ActivityEvent::masked_value(&variable.value, variable.var_type);
-                        vec![ActivityEvent::new(
-                            ActivityAction::VariableCreated,
-                            key,
-                            None,
-                            new_value,
-                            None,
-                            None,
-                        )]
-                    }
-                })
-                .collect();
-
-            for event in import_events {
-                project.push_activity_event(event, history_limit);
-            }
-        } else {
-            let import_events: Vec<ActivityEvent> = project
-                .variables
-                .iter()
-                .map(|(key, variable)| {
-                    let new_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                    ActivityEvent::new(
-                        ActivityAction::VariableCreated,
-                        key,
-                        None,
-                        new_value,
-                        None,
-                        None,
-                    )
-                })
-                .collect();
-
-            for event in import_events {
-                project.push_activity_event(event, history_limit);
+            None => {
+                let mut project = Project::new(project_name.clone(), None);
+                let mut environment = Environment::new(environment_name.clone());
+                merge_environment(&mut environment, &bundle_environment, max_versions);
+                project.environments.insert(environment_name, environment);
+                vault.projects.insert(project_name.clone(), project);
             }
         }
 
-        vault.projects.insert(project_name.clone(), project);
         vault.touch();
         self.store.save(&vault, vault_passphrase)?;
         Ok(project_name)
     }
 
-    /// fn set_variable(.
+    /// Set a variable's value (and optionally its type) in one environment,
+    /// appending a new version. A no-op call (same value, same type, not
+    /// reviving a deleted variable) records nothing.
     pub fn set_variable(
         &self,
         project_name: &str,
+        environment_name: &str,
         key: &str,
         value: &str,
         var_type: Option<VarType>,
         passphrase: &str,
     ) -> Result<()> {
         let _lock = self.store.lock()?;
-        let history_limit = self.store.config()?.history_limit;
+        let max_versions = self.store.config()?.max_versions;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -569,49 +683,15 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
+        let environment = require_environment_mut(project, project_name, environment_name)?;
 
-        match project.variables.get_mut(key) {
+        match environment.variables.get_mut(key) {
             Some(variable) => {
-                let old_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-                let old_type = variable.var_type;
-
-                let value_changed = variable.value != value;
-                let type_changed = var_type.is_some_and(|vt| vt != variable.var_type);
-
-                variable.set(value);
-                if let Some(var_type) = var_type {
-                    variable.set_type(var_type);
-                }
-
-                let new_type = variable.var_type;
-
-                if type_changed {
-                    project.push_activity_event(
-                        ActivityEvent::new(
-                            ActivityAction::VariableTypeChanged,
-                            key,
-                            None,
-                            None,
-                            Some(old_type),
-                            Some(new_type),
-                        ),
-                        history_limit,
-                    );
-                }
-
-                if value_changed {
-                    let new_value = ActivityEvent::masked_value(value, new_type);
-                    project.push_activity_event(
-                        ActivityEvent::new(
-                            ActivityAction::VariableUpdated,
-                            key,
-                            old_value,
-                            new_value,
-                            None,
-                            None,
-                        ),
-                        history_limit,
-                    );
+                let resolved_type = var_type.unwrap_or_else(|| variable.var_type());
+                let value_changed = variable.value() != value;
+                let type_changed = resolved_type != variable.var_type();
+                if value_changed || type_changed || variable.is_deleted() {
+                    variable.record(value, resolved_type, max_versions);
                 }
             }
             None => {
@@ -619,32 +699,27 @@ impl AppService {
                     Some(var_type) => Variable::new_with_type(value.to_owned(), var_type),
                     None => Variable::new(key, value.to_owned()),
                 };
-                let new_type = variable.var_type;
-                let new_value = ActivityEvent::masked_value(value, new_type);
-                project.variables.insert(key.to_owned(), variable);
-                project.push_activity_event(
-                    ActivityEvent::new(
-                        ActivityAction::VariableCreated,
-                        key,
-                        None,
-                        new_value,
-                        None,
-                        None,
-                    ),
-                    history_limit,
-                );
+                environment.variables.insert(key.to_owned(), variable);
             }
         }
 
+        environment.touch();
         project.touch();
         vault.touch();
         self.store.save(&vault, passphrase)
     }
 
-    /// fn unset_variable(&self, project_name.
-    pub fn unset_variable(&self, project_name: &str, key: &str, passphrase: &str) -> Result<()> {
+    /// Tombstone a variable in one environment. Its version history is
+    /// kept for `envlt history`; unsetting an already-deleted (or never
+    /// existing) key is an error.
+    pub fn unset_variable(
+        &self,
+        project_name: &str,
+        environment_name: &str,
+        key: &str,
+        passphrase: &str,
+    ) -> Result<()> {
         let _lock = self.store.lock()?;
-        let history_limit = self.store.config()?.history_limit;
         let mut vault = self.store.load(passphrase)?;
         let project =
             vault
@@ -653,44 +728,41 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
+        let environment = require_environment_mut(project, project_name, environment_name)?;
 
-        let removed = project.variables.remove(key);
-        if removed.is_none() {
+        let variable =
+            environment
+                .variables
+                .get_mut(key)
+                .ok_or_else(|| EnvltError::VariableNotFound {
+                    project: project_name.to_owned(),
+                    key: key.to_owned(),
+                })?;
+
+        if variable.is_deleted() {
             return Err(EnvltError::VariableNotFound {
                 project: project_name.to_owned(),
                 key: key.to_owned(),
             });
         }
 
-        if let Some(variable) = removed {
-            let old_value = ActivityEvent::masked_value(&variable.value, variable.var_type);
-            project.push_activity_event(
-                ActivityEvent::new(
-                    ActivityAction::VariableDeleted,
-                    key,
-                    old_value,
-                    None,
-                    None,
-                    None,
-                ),
-                history_limit,
-            );
-        }
-
+        variable.mark_deleted();
+        environment.touch();
         project.touch();
         vault.touch();
         self.store.save(&vault, passphrase)
     }
 
-    /// fn generate_value(&self, gen_type.
+    /// Generate a value without storing it.
     pub fn generate_value(&self, gen_type: GenType) -> String {
         generate_value(gen_type)
     }
 
-    /// fn generate_and_store(.
+    /// Generate a value and store it as a new variable.
     pub fn generate_and_store(
         &self,
         project_name: &str,
+        environment_name: &str,
         key: &str,
         gen_type: GenType,
         passphrase: &str,
@@ -698,6 +770,7 @@ impl AppService {
         let value = generate_value(gen_type);
         self.set_variable(
             project_name,
+            environment_name,
             key,
             &value,
             Some(gen_type.default_var_type()),
@@ -706,10 +779,11 @@ impl AppService {
         Ok(value)
     }
 
-    /// fn project_variables(.
+    /// Current (non-deleted) variables in one environment.
     pub fn project_variables(
         &self,
         project_name: &str,
+        environment_name: &str,
         passphrase: &str,
     ) -> Result<BTreeMap<String, String>> {
         let vault = self.store.load(passphrase)?;
@@ -720,18 +794,22 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
+        let environment = require_environment(project, project_name, environment_name)?;
 
-        Ok(project
+        Ok(environment
             .variables
             .iter()
-            .map(|(key, variable)| (key.clone(), variable.value.clone()))
+            .filter(|(_, variable)| !variable.is_deleted())
+            .map(|(key, variable)| (key.clone(), variable.value().to_owned()))
             .collect())
     }
 
-    /// fn project_variable_views(.
+    /// Current (non-deleted) variables in one environment, with type and
+    /// last-updated metadata.
     pub fn project_variable_views(
         &self,
         project_name: &str,
+        environment_name: &str,
         passphrase: &str,
     ) -> Result<Vec<VariableView>> {
         let vault = self.store.load(passphrase)?;
@@ -742,23 +820,27 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
+        let environment = require_environment(project, project_name, environment_name)?;
 
-        Ok(project
+        Ok(environment
             .variables
             .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
             .map(|(key, variable)| VariableView {
                 key: key.clone(),
-                value: variable.value.clone(),
-                var_type: variable.var_type,
-                updated_at: variable.updated_at,
+                value: variable.value().to_owned(),
+                var_type: variable.var_type(),
+                updated_at: variable.updated_at(),
             })
             .collect())
     }
 
-    /// fn diff_project_against_example(.
+    /// Compare one environment's current variables against an
+    /// `.env.example` template.
     pub fn diff_project_against_example(
         &self,
         project_name: &str,
+        environment_name: &str,
         example_path: &Path,
         passphrase: &str,
     ) -> Result<ExampleDiff> {
@@ -770,24 +852,33 @@ impl AppService {
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: project_name.to_owned(),
                 })?;
+        let environment = require_environment(project, project_name, environment_name)?;
         let example_variables = parse_env_file(example_path)?;
+
+        let is_active = |key: &str| {
+            environment
+                .variables
+                .get(key)
+                .is_some_and(|variable| !variable.is_deleted())
+        };
 
         let missing_in_vault = example_variables
             .keys()
-            .filter(|key| !project.variables.contains_key(*key))
+            .filter(|key| !is_active(key))
             .cloned()
             .collect();
 
-        let extra_in_vault = project
+        let extra_in_vault = environment
             .variables
-            .keys()
-            .filter(|key| !example_variables.contains_key(*key))
-            .cloned()
+            .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
+            .filter(|(key, _)| !example_variables.contains_key(*key))
+            .map(|(key, _)| key.clone())
             .collect();
 
         let shared_keys = example_variables
             .keys()
-            .filter(|key| project.variables.contains_key(*key))
+            .filter(|key| is_active(key))
             .cloned()
             .collect();
 
@@ -800,75 +891,75 @@ impl AppService {
         })
     }
 
-    /// fn diff_projects(.
+    /// Compare current variables between two environments, which may
+    /// belong to the same or different projects.
     pub fn diff_projects(
         &self,
         left_project: &str,
+        left_environment: &str,
         right_project: &str,
+        right_environment: &str,
         passphrase: &str,
     ) -> Result<ProjectDiff> {
         let vault = self.store.load(passphrase)?;
-        let left = vault
-            .projects
-            .get(left_project)
-            .ok_or_else(|| EnvltError::ProjectNotFound {
-                name: left_project.to_owned(),
-            })?;
-        let right =
+        let left_project_data =
+            vault
+                .projects
+                .get(left_project)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: left_project.to_owned(),
+                })?;
+        let left = require_environment(left_project_data, left_project, left_environment)?;
+        let right_project_data =
             vault
                 .projects
                 .get(right_project)
                 .ok_or_else(|| EnvltError::ProjectNotFound {
                     name: right_project.to_owned(),
                 })?;
+        let right = require_environment(right_project_data, right_project, right_environment)?;
+
+        let left_has = |key: &str| left.variables.get(key).is_some_and(|v| !v.is_deleted());
+        let right_has = |key: &str| right.variables.get(key).is_some_and(|v| !v.is_deleted());
 
         let only_in_left = left
             .variables
-            .keys()
-            .filter(|key| !right.variables.contains_key(*key))
-            .cloned()
+            .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
+            .filter(|(key, _)| !right_has(key))
+            .map(|(key, _)| key.clone())
             .collect();
 
         let only_in_right = right
             .variables
-            .keys()
-            .filter(|key| !left.variables.contains_key(*key))
+            .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
+            .filter(|(key, _)| !left_has(key))
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        let shared_keys: Vec<String> = left
+            .variables
+            .iter()
+            .filter(|(_, variable)| !variable.is_deleted())
+            .filter(|(key, _)| right_has(key))
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        let changed_values = shared_keys
+            .iter()
+            .filter(|key| {
+                left.variables[key.as_str()].value() != right.variables[key.as_str()].value()
+            })
             .cloned()
             .collect();
 
-        let shared_keys = left
-            .variables
-            .keys()
-            .filter(|key| right.variables.contains_key(*key))
+        let changed_types = shared_keys
+            .iter()
+            .filter(|key| {
+                left.variables[key.as_str()].var_type() != right.variables[key.as_str()].var_type()
+            })
             .cloned()
-            .collect();
-
-        let changed_values = left
-            .variables
-            .iter()
-            .filter_map(|(key, left_variable)| {
-                right.variables.get(key).and_then(|right_variable| {
-                    if left_variable.value != right_variable.value {
-                        Some(key.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
-
-        let changed_types = left
-            .variables
-            .iter()
-            .filter_map(|(key, left_variable)| {
-                right.variables.get(key).and_then(|right_variable| {
-                    if left_variable.var_type != right_variable.var_type {
-                        Some(key.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
             .collect();
 
         Ok(ProjectDiff {
@@ -882,16 +973,19 @@ impl AppService {
         })
     }
 
-    /// fn write_env_file(.
+    /// Write one environment's current variables to a `.env` file,
+    /// atomically and with `0600` permissions on Unix.
     pub fn write_env_file(
         &self,
         project_name: &str,
+        environment_name: &str,
         output_path: &Path,
         passphrase: &str,
     ) -> Result<()> {
         use std::io::Write;
 
-        let content = self.render_project_env_content(project_name, passphrase)?;
+        let content =
+            self.render_project_env_content(project_name, environment_name, passphrase)?;
 
         let parent = output_path
             .parent()
@@ -916,27 +1010,29 @@ impl AppService {
         Ok(())
     }
 
-    /// fn render_project_env_content(.
+    /// Render one environment's current variables as `.env`-formatted text.
     pub fn render_project_env_content(
         &self,
         project_name: &str,
+        environment_name: &str,
         passphrase: &str,
     ) -> Result<String> {
-        let variables = self.project_variables(project_name, passphrase)?;
+        let variables = self.project_variables(project_name, environment_name, passphrase)?;
         Ok(render_env(&variables))
     }
 
-    /// fn build_run_environment(.
+    /// Resolve one environment's current variables for `envlt run`.
     pub fn build_run_environment(
         &self,
         project_name: &str,
+        environment_name: &str,
         passphrase: &str,
     ) -> Result<RunEnvironment> {
-        let variables = self.project_variables(project_name, passphrase)?;
+        let variables = self.project_variables(project_name, environment_name, passphrase)?;
         Ok(RunEnvironment { variables })
     }
 
-    /// fn doctor(&self, current_dir.
+    /// Run environment/vault/link health checks for `envlt doctor`.
     pub fn doctor(&self, current_dir: Option<&Path>, passphrase: Option<&str>) -> DoctorReport {
         let mut checks = Vec::new();
         let root_dir = self.store.root_dir();
@@ -965,8 +1061,8 @@ impl AppService {
                     code: "config".to_owned(),
                     severity: DiagnosticSeverity::Ok,
                     detail: format!(
-                        "history_limit={}, lock_timeout_ms={} (from {source}, env vars override)",
-                        config.history_limit, config.lock_timeout_ms
+                        "max_versions={}, lock_timeout_ms={} (from {source}, env vars override)",
+                        config.max_versions, config.lock_timeout_ms
                     ),
                 });
             }
@@ -1067,7 +1163,7 @@ impl AppService {
         };
 
         match find_project_link(&current_dir) {
-            Ok(Some((link_dir, project))) => {
+            Ok(Some((link_dir, project, _environment))) => {
                 checks.push(DiagnosticCheck {
                     code: "link".to_owned(),
                     severity: DiagnosticSeverity::Ok,
@@ -1142,7 +1238,7 @@ impl AppService {
         };
 
         match find_project_link(&search_root)? {
-            Some((link_dir, linked_project)) if linked_project == project_name => {
+            Some((link_dir, linked_project, _environment)) if linked_project == project_name => {
                 remove_project_link(&link_dir)
             }
             _ => Ok(false),
@@ -1159,7 +1255,7 @@ mod tests {
     use super::{
         AppService, DiagnosticSeverity, ExampleDiff, ProjectDiff, RemoveProjectResult, VariableView,
     };
-    use crate::vault::ActivityAction;
+    use crate::vault::{ActivityAction, DEFAULT_ENVIRONMENT};
     use crate::{GenType, VarType, VaultStore};
 
     #[test]
@@ -1186,13 +1282,17 @@ mod tests {
         let project = service
             .project_snapshot("typed-project", "passphrase")
             .expect("snapshot");
+        let environment = &project.environments[DEFAULT_ENVIRONMENT];
 
         assert_eq!(
-            project.variables.get("API_KEY").map(|var| var.var_type),
+            environment
+                .variables
+                .get("API_KEY")
+                .map(|var| var.var_type()),
             Some(VarType::Secret)
         );
         assert_eq!(
-            project.variables.get("PORT").map(|var| var.var_type),
+            environment.variables.get("PORT").map(|var| var.var_type()),
             Some(VarType::Plain)
         );
     }
@@ -1219,22 +1319,40 @@ mod tests {
             .expect("add project");
 
         service
-            .set_variable("typed-project", "DB_PASSWORD", "secret", None, "passphrase")
+            .set_variable(
+                "typed-project",
+                DEFAULT_ENVIRONMENT,
+                "DB_PASSWORD",
+                "secret",
+                None,
+                "passphrase",
+            )
             .expect("set secret");
         service
-            .set_variable("typed-project", "PORT", "4000", None, "passphrase")
+            .set_variable(
+                "typed-project",
+                DEFAULT_ENVIRONMENT,
+                "PORT",
+                "4000",
+                None,
+                "passphrase",
+            )
             .expect("update config");
 
         let project = service
             .project_snapshot("typed-project", "passphrase")
             .expect("snapshot");
+        let environment = &project.environments[DEFAULT_ENVIRONMENT];
 
         assert_eq!(
-            project.variables.get("DB_PASSWORD").map(|var| var.var_type),
+            environment
+                .variables
+                .get("DB_PASSWORD")
+                .map(|var| var.var_type()),
             Some(VarType::Secret)
         );
         assert_eq!(
-            project.variables.get("PORT").map(|var| var.var_type),
+            environment.variables.get("PORT").map(|var| var.var_type()),
             Some(VarType::Plain)
         );
     }
@@ -1263,6 +1381,7 @@ mod tests {
         service
             .set_variable(
                 "typed-project",
+                DEFAULT_ENVIRONMENT,
                 "PORT",
                 "4000",
                 Some(VarType::Secret),
@@ -1275,7 +1394,10 @@ mod tests {
             .expect("snapshot");
 
         assert_eq!(
-            project.variables.get("PORT").map(|var| var.var_type),
+            project.environments[DEFAULT_ENVIRONMENT]
+                .variables
+                .get("PORT")
+                .map(|var| var.var_type()),
             Some(VarType::Secret)
         );
     }
@@ -1306,20 +1428,21 @@ mod tests {
         let project = service
             .project_snapshot("example-project", "passphrase")
             .expect("snapshot");
+        let environment = &project.environments[DEFAULT_ENVIRONMENT];
 
         assert_eq!(
-            project.variables.get("PORT").map(|var| var.value.as_str()),
+            environment.variables.get("PORT").map(|var| var.value()),
             Some("3000")
         );
         assert_eq!(
-            project
-                .variables
-                .get("API_KEY")
-                .map(|var| var.value.as_str()),
+            environment.variables.get("API_KEY").map(|var| var.value()),
             Some("abc123")
         );
         assert_eq!(
-            project.variables.get("API_KEY").map(|var| var.var_type),
+            environment
+                .variables
+                .get("API_KEY")
+                .map(|var| var.var_type()),
             Some(VarType::Secret)
         );
     }
@@ -1348,8 +1471,9 @@ mod tests {
         let project = service
             .project_snapshot("typed-project", "passphrase")
             .expect("snapshot");
+        let environment = &project.environments[DEFAULT_ENVIRONMENT];
         let views = service
-            .project_variable_views("typed-project", "passphrase")
+            .project_variable_views("typed-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("variable views");
 
         assert_eq!(
@@ -1359,13 +1483,13 @@ mod tests {
                     key: "API_KEY".to_owned(),
                     value: "abc123".to_owned(),
                     var_type: VarType::Secret,
-                    updated_at: project.variables.get("API_KEY").unwrap().updated_at,
+                    updated_at: environment.variables["API_KEY"].updated_at(),
                 },
                 VariableView {
                     key: "PORT".to_owned(),
                     value: "3000".to_owned(),
                     var_type: VarType::Plain,
-                    updated_at: project.variables.get("PORT").unwrap().updated_at,
+                    updated_at: environment.variables["PORT"].updated_at(),
                 },
             ]
         );
@@ -1395,7 +1519,12 @@ mod tests {
             .expect("add project");
 
         let diff = service
-            .diff_project_against_example("diff-project", &example_path, "passphrase")
+            .diff_project_against_example(
+                "diff-project",
+                DEFAULT_ENVIRONMENT,
+                &example_path,
+                "passphrase",
+            )
             .expect("diff");
 
         assert_eq!(
@@ -1434,6 +1563,7 @@ mod tests {
         let value = service
             .generate_and_store(
                 "gen-project",
+                DEFAULT_ENVIRONMENT,
                 "JWT_SECRET",
                 GenType::JwtSecret,
                 "passphrase",
@@ -1445,13 +1575,13 @@ mod tests {
         let project = service
             .project_snapshot("gen-project", "passphrase")
             .expect("snapshot");
-        let variable = project
+        let variable = project.environments[DEFAULT_ENVIRONMENT]
             .variables
             .get("JWT_SECRET")
             .expect("generated variable");
 
-        assert_eq!(variable.value, value);
-        assert_eq!(variable.var_type, VarType::Secret);
+        assert_eq!(variable.value(), value);
+        assert_eq!(variable.var_type(), VarType::Secret);
     }
 
     #[test]
@@ -1489,7 +1619,13 @@ mod tests {
             .expect("add right project");
 
         let diff = service
-            .diff_projects("left-project", "right-project", "passphrase")
+            .diff_projects(
+                "left-project",
+                DEFAULT_ENVIRONMENT,
+                "right-project",
+                DEFAULT_ENVIRONMENT,
+                "passphrase",
+            )
             .expect("project diff");
 
         assert_eq!(
@@ -1541,6 +1677,7 @@ mod tests {
         service
             .set_variable(
                 "right-project",
+                DEFAULT_ENVIRONMENT,
                 "API_TOKEN",
                 "same",
                 Some(VarType::Plain),
@@ -1549,7 +1686,13 @@ mod tests {
             .expect("retag variable");
 
         let diff = service
-            .diff_projects("left-project", "right-project", "passphrase")
+            .diff_projects(
+                "left-project",
+                DEFAULT_ENVIRONMENT,
+                "right-project",
+                DEFAULT_ENVIRONMENT,
+                "passphrase",
+            )
             .expect("project diff");
 
         assert_eq!(
@@ -1785,7 +1928,12 @@ mod tests {
 
         let output_env = output_dir.path().join("output.env");
         service
-            .write_env_file("perm-project", &output_env, "passphrase")
+            .write_env_file(
+                "perm-project",
+                DEFAULT_ENVIRONMENT,
+                &output_env,
+                "passphrase",
+            )
             .expect("write env file");
 
         let metadata = std::fs::metadata(&output_env).expect("metadata");
@@ -1807,6 +1955,7 @@ mod tests {
         service
             .set_variable(
                 "test-project",
+                DEFAULT_ENVIRONMENT,
                 "GREETING",
                 "hello",
                 Some(VarType::Plain),
@@ -1815,7 +1964,7 @@ mod tests {
             .expect("set variable");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
         let created = log
@@ -1837,11 +1986,18 @@ mod tests {
             .expect("add project");
 
         service
-            .set_variable("test-project", "PORT", "4000", None, "passphrase")
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "PORT",
+                "4000",
+                None,
+                "passphrase",
+            )
             .expect("set variable");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
         let updated = log
@@ -1866,6 +2022,7 @@ mod tests {
         service
             .set_variable(
                 "test-project",
+                DEFAULT_ENVIRONMENT,
                 "PORT",
                 "3000",
                 Some(VarType::Secret),
@@ -1874,7 +2031,7 @@ mod tests {
             .expect("set variable");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
         let type_changed = log
@@ -1897,11 +2054,11 @@ mod tests {
             .expect("add project");
 
         service
-            .unset_variable("test-project", "PORT", "passphrase")
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
             .expect("unset variable");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
         let deleted = log
@@ -1909,6 +2066,53 @@ mod tests {
             .find(|e| e.action == ActivityAction::VariableDeleted && e.variable_key == "PORT");
         assert!(deleted.is_some(), "expected VariableDeleted event");
         assert_eq!(deleted.unwrap().old_value, Some("3000".to_owned()));
+    }
+
+    #[test]
+    fn unset_variable_twice_is_an_error() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        service
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("first unset");
+
+        assert!(service
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn unset_variable_hides_it_from_project_variables_but_keeps_its_history() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .unset_variable("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("unset");
+
+        let variables = service
+            .project_variables("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .expect("variables");
+        assert!(!variables.contains_key("PORT"));
+
+        let history = service
+            .variable_history("test-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("history");
+        assert!(history
+            .iter()
+            .any(|event| event.action == ActivityAction::VariableDeleted));
     }
 
     #[test]
@@ -1923,7 +2127,7 @@ mod tests {
             .expect("add project");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
         let created = log.iter().find(|e| e.variable_key == "API_KEY");
@@ -1934,7 +2138,7 @@ mod tests {
     }
 
     #[test]
-    fn activity_log_respects_env_limit() {
+    fn activity_log_respects_max_versions_env_var() {
         let _env_lock = crate::test_support::ENV_VAR_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -1942,9 +2146,8 @@ mod tests {
         let store = VaultStore::new(home.path().to_path_buf());
         let service = AppService::new(store);
 
-        std::env::set_var("ENVLT_HISTORY_LIMIT", "3");
-        // Ensure cleanup after test
-        let _guard = CleanupEnvVar("ENVLT_HISTORY_LIMIT");
+        std::env::set_var("ENVLT_MAX_VERSIONS", "3");
+        let _guard = CleanupEnvVar("ENVLT_MAX_VERSIONS");
 
         service.init_vault("passphrase").expect("init");
         service
@@ -1952,32 +2155,245 @@ mod tests {
             .expect("add project");
 
         service
-            .set_variable("test-project", "B", "2", None, "passphrase")
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "A",
+                "2",
+                None,
+                "passphrase",
+            )
             .expect("set");
         service
-            .set_variable("test-project", "C", "3", None, "passphrase")
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "A",
+                "3",
+                None,
+                "passphrase",
+            )
             .expect("set");
         service
-            .set_variable("test-project", "D", "4", None, "passphrase")
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "A",
+                "4",
+                None,
+                "passphrase",
+            )
             .expect("set");
 
         let log = service
-            .project_activity_log("test-project", "passphrase")
+            .project_activity_log("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .expect("activity log");
 
+        // max_versions=3 keeps only the last 3 of the 4 values A ever held
+        // (1, 2, 3, 4), so the oldest (1) is trimmed away entirely.
         assert_eq!(log.len(), 3);
-        // The first event (A=1 creation) should have been dropped.
-        assert!(!log.iter().any(|e| e.variable_key == "A"));
+        assert!(!log
+            .iter()
+            .any(|e| e.new_value.as_deref() == Some("1") || e.old_value.as_deref() == Some("1")));
     }
 
     #[test]
-    fn vault_v1_migration_loads_with_empty_activity_log() {
+    fn add_environment_creates_a_new_empty_environment() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .add_environment("test-project", "staging", "passphrase")
+            .expect("add environment");
+
+        let environments = service
+            .list_environments("test-project", "passphrase")
+            .expect("list environments");
+        assert_eq!(
+            environments,
+            vec![DEFAULT_ENVIRONMENT.to_owned(), "staging".to_owned()]
+        );
+
+        let variables = service
+            .project_variables("test-project", "staging", "passphrase")
+            .expect("staging variables");
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn add_environment_rejects_a_duplicate_name() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        assert!(service
+            .add_environment("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn set_variable_is_scoped_to_its_own_environment() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .add_environment("test-project", "staging", "passphrase")
+            .expect("add environment");
+        service
+            .set_variable(
+                "test-project",
+                "staging",
+                "PORT",
+                "9000",
+                None,
+                "passphrase",
+            )
+            .expect("set staging variable");
+
+        let local_variables = service
+            .project_variables("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .expect("local variables");
+        let staging_variables = service
+            .project_variables("test-project", "staging", "passphrase")
+            .expect("staging variables");
+
+        assert_eq!(
+            local_variables.get("PORT").map(String::as_str),
+            Some("3000")
+        );
+        assert_eq!(
+            staging_variables.get("PORT").map(String::as_str),
+            Some("9000")
+        );
+    }
+
+    #[test]
+    fn resolve_environment_name_prefers_explicit_then_link_then_default() {
+        assert_eq!(
+            AppService::resolve_environment_name(Some("staging"), Some("prod")),
+            "staging"
+        );
+        assert_eq!(
+            AppService::resolve_environment_name(None, Some("prod")),
+            "prod"
+        );
+        assert_eq!(
+            AppService::resolve_environment_name(None, None),
+            DEFAULT_ENVIRONMENT
+        );
+    }
+
+    #[test]
+    fn export_then_import_bundle_round_trips_a_single_environment() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str(
+                "bundle-project",
+                "PORT=3000\nAPI_KEY=abc123",
+                None,
+                "passphrase",
+            )
+            .expect("add project");
+
+        let bundle = service
+            .export_project_bundle(
+                "bundle-project",
+                DEFAULT_ENVIRONMENT,
+                "passphrase",
+                "bundle-pass",
+            )
+            .expect("export");
+
+        service
+            .remove_project("bundle-project", None, "passphrase")
+            .expect("remove before import");
+
+        let imported_name = service
+            .import_project_bundle(&bundle, "passphrase", "bundle-pass", false)
+            .expect("import");
+        assert_eq!(imported_name, "bundle-project");
+
+        let variables = service
+            .project_variables("bundle-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .expect("variables");
+        assert_eq!(variables.get("PORT").map(String::as_str), Some("3000"));
+        assert_eq!(variables.get("API_KEY").map(String::as_str), Some("abc123"));
+    }
+
+    #[test]
+    fn import_bundle_merges_into_an_existing_project_and_preserves_history() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("merge-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        let bundle = service
+            .export_project_bundle(
+                "merge-project",
+                DEFAULT_ENVIRONMENT,
+                "passphrase",
+                "bundle-pass",
+            )
+            .expect("export");
+
+        service
+            .set_variable(
+                "merge-project",
+                DEFAULT_ENVIRONMENT,
+                "PORT",
+                "4000",
+                None,
+                "passphrase",
+            )
+            .expect("change value locally after export");
+
+        let imported_name = service
+            .import_project_bundle(&bundle, "passphrase", "bundle-pass", true)
+            .expect("import with overwrite");
+        assert_eq!(imported_name, "merge-project");
+
+        let history = service
+            .variable_history("merge-project", DEFAULT_ENVIRONMENT, "PORT", "passphrase")
+            .expect("history");
+        // Created(3000) -> Updated(3000->4000) -> Updated(4000->3000 from the bundle).
+        assert_eq!(history.len(), 3);
+        let variables = service
+            .project_variables("merge-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .expect("variables");
+        assert_eq!(variables.get("PORT").map(String::as_str), Some("3000"));
+    }
+
+    #[test]
+    fn vault_v1_migration_loads_variables_into_local_environment() {
         use crate::vault::crypto;
 
         let home = TempDir::new().expect("tempdir");
         let store = VaultStore::new(home.path().to_path_buf());
 
-        // Craft a v1 vault manually (no activity_log field).
+        // Craft a v1 vault manually (no activity_log, no environments).
         let v1_toml = r#"
 version = 1
 created_at = "2024-01-01T00:00:00Z"
@@ -2004,11 +2420,26 @@ updated_at = "2024-01-01T00:00:00Z"
             .project_snapshot("test-project", "passphrase")
             .expect("load migrated vault");
 
-        assert!(project.activity_log.is_empty());
+        let environment = &project.environments[DEFAULT_ENVIRONMENT];
+        assert_eq!(
+            environment.variables.get("PORT").map(|v| v.value()),
+            Some("3000")
+        );
+        assert_eq!(
+            environment.variables.get("PORT").map(|v| v.var_type()),
+            Some(VarType::Plain)
+        );
 
-        // Trigger a save to verify version is persisted as 2.
+        // Trigger a save to verify the migrated version is persisted as 3.
         service
-            .set_variable("test-project", "PORT", "4000", None, "passphrase")
+            .set_variable(
+                "test-project",
+                DEFAULT_ENVIRONMENT,
+                "PORT",
+                "4000",
+                None,
+                "passphrase",
+            )
             .expect("set");
 
         let vault_text = {
@@ -2017,7 +2448,8 @@ updated_at = "2024-01-01T00:00:00Z"
             String::from_utf8(plaintext.to_vec()).expect("utf8")
         };
 
-        assert!(vault_text.contains("version = 2"));
+        assert!(vault_text.contains("version = 3"));
+        assert!(!vault_text.contains("activity_log"));
     }
 
     /// RAII guard to unset an environment variable when dropped.

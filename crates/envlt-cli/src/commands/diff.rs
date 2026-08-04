@@ -4,31 +4,37 @@ use anyhow::{anyhow, Result};
 use envlt_core::AppService;
 use serde_json::{json, to_string_pretty};
 
-use crate::cli::read_passphrase;
+use crate::cli::{read_passphrase, resolve_environment};
 use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_diff(
     service: &AppService,
     project: &Option<String>,
+    env: &Option<String>,
     other_project: &Option<String>,
+    other_env: &Option<String>,
     example: &Option<std::path::PathBuf>,
     format: OutputFormat,
 ) -> Result<ExitCode> {
-    if example.is_none() && other_project.is_none() {
+    if example.is_none() && other_project.is_none() && other_env.is_none() {
         return Err(anyhow!(
-            "diff requires either --example <path> or a second project name"
+            "diff requires either --example <path>, a second project name, or --other-env"
         ));
     }
 
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
+    let environment = resolve_environment(env.as_deref(), None)?;
 
     if let Some(example) = example {
-        let diff = service.diff_project_against_example(&project, example, &passphrase)?;
+        let diff =
+            service.diff_project_against_example(&project, &environment, example, &passphrase)?;
 
         let metadata_rows = vec![
             vec!["mode".to_owned(), "example".to_owned()],
             vec!["project".to_owned(), diff.project.clone()],
+            vec!["environment".to_owned(), environment.clone()],
             vec![
                 "example".to_owned(),
                 diff.example_path.display().to_string(),
@@ -58,6 +64,7 @@ pub fn run_diff(
             OutputFormat::Raw => {
                 println!("mode\texample");
                 println!("project\t{}", diff.project);
+                println!("environment\t{environment}");
                 println!("example\t{}", diff.example_path.display());
                 println!(
                     "summary\tshared={}\tmissing={}\textra={}",
@@ -81,6 +88,7 @@ pub fn run_diff(
                 let payload = json!({
                     "mode": "example",
                     "project": diff.project,
+                    "environment": environment,
                     "example": diff.example_path,
                     "summary": summary,
                     "items": items,
@@ -88,13 +96,29 @@ pub fn run_diff(
                 println!("{}", to_string_pretty(&payload)?);
             }
         }
-    } else if let Some(other_project) = other_project {
-        let diff = service.diff_projects(&project, other_project, &passphrase)?;
+    } else {
+        // No --example: compare two environments, which may belong to the
+        // same project (--other-env alone) or two different projects
+        // (a second project name, optionally paired with --other-env to
+        // pick which of its environments to use).
+        let right_project = other_project.clone().unwrap_or_else(|| project.clone());
+        let right_environment = other_env.clone().unwrap_or_else(|| environment.clone());
+
+        let diff = service.diff_projects(
+            &project,
+            &environment,
+            &right_project,
+            &right_environment,
+            &passphrase,
+        )?;
+
+        let left_label = format!("{}@{environment}", diff.left_project);
+        let right_label = format!("{}@{right_environment}", diff.right_project);
 
         let metadata_rows = vec![
             vec!["mode".to_owned(), "project".to_owned()],
-            vec!["left".to_owned(), diff.left_project.clone()],
-            vec!["right".to_owned(), diff.right_project.clone()],
+            vec!["left".to_owned(), left_label.clone()],
+            vec!["right".to_owned(), right_label.clone()],
         ];
         let summary_rows = vec![
             vec!["shared".to_owned(), diff.shared_keys.len().to_string()],
@@ -133,8 +157,8 @@ pub fn run_diff(
         match format {
             OutputFormat::Raw => {
                 println!("mode\tproject");
-                println!("left\t{}", diff.left_project);
-                println!("right\t{}", diff.right_project);
+                println!("left\t{left_label}");
+                println!("right\t{right_label}");
                 println!(
                     "summary\tshared={}\tchanged_values={}\tchanged_types={}\tonly_left={}\tonly_right={}",
                     diff.shared_keys.len(),
@@ -158,16 +182,14 @@ pub fn run_diff(
                 let items = rows_to_json_objects(&["status", "key"], &item_rows);
                 let payload = json!({
                     "mode": "project",
-                    "left": diff.left_project,
-                    "right": diff.right_project,
+                    "left": left_label,
+                    "right": right_label,
                     "summary": summary,
                     "items": items,
                 });
                 println!("{}", to_string_pretty(&payload)?);
             }
         }
-    } else {
-        unreachable!("validated above");
     }
 
     Ok(ExitCode::SUCCESS)
