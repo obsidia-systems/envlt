@@ -1,10 +1,10 @@
-use std::process::ExitCode;
+use std::{env, process::ExitCode};
 
 use anyhow::Result;
 use envlt_core::AppService;
 use serde_json::to_string_pretty;
 
-use crate::cli::{print_success, read_passphrase};
+use crate::cli::{confirm_action, print_success, read_passphrase};
 use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_env_list(
@@ -40,6 +40,49 @@ pub fn run_env_add(service: &AppService, name: &str, project: &Option<String>) -
     service.add_environment(&project, name, &passphrase)?;
     print_success(&format!(
         "Environment '{name}' added to project '{project}'."
+    ))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+pub fn run_env_remove(
+    service: &AppService,
+    name: &str,
+    project: &Option<String>,
+    yes: bool,
+) -> Result<ExitCode> {
+    let project = service.resolve_project_name(project.as_deref(), None)?;
+
+    if !yes {
+        let confirmed = confirm_action(
+            Some("ENVLT_ENV_REMOVE_CONFIRM"),
+            &format!(
+                "Remove environment '{name}' from project '{project}'? This deletes all its \
+                 variables and their history. [y/N]: "
+            ),
+        )?;
+
+        if !confirmed {
+            print_success("Removal cancelled.")?;
+            return Ok(ExitCode::SUCCESS);
+        }
+    }
+
+    let passphrase = read_passphrase(service.store(), false)?;
+    service.remove_environment(&project, name, &passphrase)?;
+    print_success(&format!(
+        "Environment '{name}' removed from project '{project}'."
+    ))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+pub fn run_env_use(service: &AppService, name: &str, project: &Option<String>) -> Result<ExitCode> {
+    let passphrase = read_passphrase(service.store(), false)?;
+    let project = service.resolve_project_name(project.as_deref(), None)?;
+    let current_dir = env::current_dir()?;
+    service.use_environment(&project, name, &current_dir, &passphrase)?;
+    print_success(&format!(
+        "'{}' now defaults to environment '{name}' for project '{project}'.",
+        current_dir.display()
     ))?;
     Ok(ExitCode::SUCCESS)
 }

@@ -17,20 +17,32 @@ struct ProjectLink {
     project: String,
     envlt_version: String,
     /// Which environment this working directory defaults to. `None` for
-    /// links written before environments existed, or by commands that
-    /// haven't been taught to set it yet -- callers fall back to
-    /// [`crate::vault::DEFAULT_ENVIRONMENT`] in that case.
+    /// links written before environments existed, or written by a command
+    /// that doesn't pin one (e.g. plain `envlt add`) -- callers fall back
+    /// to [`crate::vault::DEFAULT_ENVIRONMENT`] in that case. Set via
+    /// [`write_project_link_with_environment`] (`envlt env use`).
     #[serde(default)]
     environment: Option<String>,
 }
 
-/// Write a `.envlt-link` file in `project_root` pointing to `project_name`.
+/// Write a `.envlt-link` file in `project_root` pointing to `project_name`,
+/// with no pinned environment.
 pub fn write_project_link(project_root: &Path, project_name: &str) -> Result<()> {
+    write_project_link_with_environment(project_root, project_name, None)
+}
+
+/// Write a `.envlt-link` file in `project_root` pointing to `project_name`,
+/// pinning `environment` as this directory's default when given.
+pub fn write_project_link_with_environment(
+    project_root: &Path,
+    project_name: &str,
+    environment: Option<&str>,
+) -> Result<()> {
     let link_path = project_root.join(LINK_FILE_NAME);
     let link = ProjectLink {
         project: project_name.to_owned(),
         envlt_version: format!("{}.0", VAULT_VERSION),
-        environment: None,
+        environment: environment.map(str::to_owned),
     };
     let content = toml::to_string(&link)?;
     fs::write(link_path, content)?;

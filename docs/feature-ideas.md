@@ -140,6 +140,8 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
     ```bash
     envlt env list --project api-payments
     envlt env add staging --project api-payments
+    envlt env use staging --project api-payments
+    envlt env remove staging --project api-payments
     envlt vars --project api-payments --env staging
     envlt set --project api-payments --env staging --secret DATABASE_URL=...
     envlt use --project api-payments --env staging --out .env
@@ -151,7 +153,8 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
   - Every project has a default environment (`local`), seeded automatically by `add`/`init`.
   - Variables are duplicated per environment, not shared with overrides.
   - `.evlt` bundles export exactly one environment, never the whole project.
-- **Deferred**: shared/project-level inherited variables (no demand yet); `.envlt-link` environment-writing CLI surface (e.g. `set --env staging --save-link`).
+- **Deferred**: shared/project-level inherited variables (no demand yet); `envlt env rename` (no demand yet -- recreate + re-set works as a manual substitute).
+- **Update**: the `.envlt-link` environment-writing CLI surface landed too, as `envlt env use <name>` (a `kubectl config use-context`-style command, re-runnable to switch a directory's default at any time) and `envlt env remove <name>` (with the same confirm-by-default/`--yes` pattern as `envlt remove` for projects; blocked from removing a project's last environment).
 - **Why**: Most teams already think in environments (`dev`, `staging`, `prod`).
 
 ### 9. Configuration File — Done

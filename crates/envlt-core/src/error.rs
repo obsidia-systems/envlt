@@ -75,6 +75,16 @@ pub enum EnvltError {
         /// Existing environment name.
         name: String,
     },
+    /// Attempted to remove a project's only remaining environment.
+    #[error(
+        "cannot remove environment '{name}' from project '{project}': every project must keep at least one"
+    )]
+    CannotRemoveLastEnvironment {
+        /// Project the environment belongs to.
+        project: String,
+        /// Environment that would have been removed.
+        name: String,
+    },
     /// Attempted to create a project that already exists.
     #[error("project '{name}' already exists")]
     ProjectAlreadyExists {

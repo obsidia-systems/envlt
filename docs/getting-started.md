@@ -193,7 +193,14 @@ envlt vars --project api-payments --env staging
 envlt run --project api-payments --env staging -- node server.js
 ```
 
-Variables are fully duplicated per environment: setting `DATABASE_URL` in `staging` has no effect on `local`, and `envlt vars` without `--env` always shows `local`. See [CLI Reference](cli-reference.md#environments) for the full list of `--env`-aware commands and the resolution order.
+Variables are fully duplicated per environment: setting `DATABASE_URL` in `staging` has no effect on `local`, and `envlt vars` without `--env` always shows `local`. If you work in `staging` from a given directory most of the time, pin it once instead of typing `--env staging` on every command:
+
+```bash
+envlt env use staging --project api-payments
+envlt vars --project api-payments   # now shows staging without --env
+```
+
+`envlt env remove staging --project api-payments` deletes an environment (and its variables' full history) once you no longer need it; every project must keep at least one, so the last one can't be removed. See [CLI Reference](cli-reference.md#environments) for the full list of `--env`-aware commands and the resolution order.
 
 ### Share a project snapshot
 
@@ -254,7 +261,7 @@ project = "api-payments"
 envlt_version = "1.0"
 ```
 
-`.envlt-link` also supports an optional `environment` field as a per-directory default for `--env`-aware commands, but no command writes it yet -- set `--env` explicitly until that lands.
+`.envlt-link` also supports an optional `environment` field as a per-directory default for `--env`-aware commands, set with `envlt env use <name>` (see [Environments](#environments) above).
 
 ## Current limitations
 
@@ -262,7 +269,7 @@ envlt_version = "1.0"
 - Cloud sync is not implemented
 - `gen` still lacks all planned presets
 - `diff` intentionally does not provide before/after value views in this milestone
-- no command writes an `environment` into `.envlt-link` yet, so it always falls back to `local` unless `--env` is given explicitly
+- no `envlt env rename`; recreate the environment and re-set its variables instead
 
 ## Troubleshooting
 

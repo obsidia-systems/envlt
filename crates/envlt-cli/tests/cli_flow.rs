@@ -1935,6 +1935,177 @@ fn env_add_and_list_shows_environments() {
 }
 
 #[test]
+fn env_remove_can_be_cancelled_and_then_confirmed() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-remove-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "env-remove-project"])
+        .assert()
+        .success();
+
+    // Declining the prompt leaves the environment in place.
+    let mut cancel_cmd = cli(&home);
+    cancel_cmd.env("ENVLT_ENV_REMOVE_CONFIRM", "n");
+    cancel_cmd
+        .args([
+            "env",
+            "remove",
+            "staging",
+            "--project",
+            "env-remove-project",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Removal cancelled."));
+    cli(&home)
+        .args([
+            "env",
+            "list",
+            "--project",
+            "env-remove-project",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("staging"));
+
+    // --yes skips the prompt and actually removes it.
+    cli(&home)
+        .args([
+            "env",
+            "remove",
+            "staging",
+            "--project",
+            "env-remove-project",
+            "--yes",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("removed"));
+    cli(&home)
+        .args([
+            "env",
+            "list",
+            "--project",
+            "env-remove-project",
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("staging").not());
+}
+
+#[test]
+fn env_remove_rejects_removing_the_last_environment() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "only-local-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .args([
+            "env",
+            "remove",
+            "local",
+            "--project",
+            "only-local-project",
+            "--yes",
+        ])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn env_use_pins_the_default_environment_for_the_directory() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-use-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args(["env", "add", "staging", "--project", "env-use-project"])
+        .assert()
+        .success();
+    cli(&home)
+        .args([
+            "set",
+            "--project",
+            "env-use-project",
+            "--env",
+            "staging",
+            "PORT=9000",
+        ])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["env", "use", "staging"])
+        .assert()
+        .success();
+
+    let link = fs::read_to_string(project_dir.path().join(".envlt-link")).expect("read link");
+    assert!(link.contains("staging"));
+
+    // vars now resolves to staging via .envlt-link without an explicit --env.
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["vars", "--format", "raw"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PORT\tplain\t9000"));
+}
+
+#[test]
+fn env_use_rejects_an_unknown_environment() {
+    let home = TempDir::new().expect("tempdir");
+    let project_dir = TempDir::new().expect("tempdir");
+    let env_path = project_dir.path().join(".env");
+
+    fs::write(&env_path, "PORT=3000\n").expect("write env");
+
+    cli(&home).arg("init").assert().success();
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["add", "env-use-ghost-project"])
+        .assert()
+        .success();
+
+    cli(&home)
+        .current_dir(project_dir.path())
+        .args(["env", "use", "ghost"])
+        .assert()
+        .failure();
+}
+
+#[test]
 fn set_env_scopes_a_variable_to_that_environment() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");

@@ -11,7 +11,10 @@ use crate::{
     env::{parse_env_file, parse_env_str, render_env},
     error::{EnvltError, Result},
     gen::{generate_value, GenType},
-    link::{find_project_link, remove_project_link, write_project_link},
+    link::{
+        find_project_link, remove_project_link, write_project_link,
+        write_project_link_with_environment,
+    },
     vault::{
         infer_var_type, synthesize_variable_events, ActivityEvent, Environment, Project, VarType,
         Variable, VaultStore, DEFAULT_ENVIRONMENT,
@@ -508,6 +511,68 @@ impl AppService {
                     name: project_name.to_owned(),
                 })?;
         Ok(project.environments.keys().cloned().collect())
+    }
+
+    /// Remove an environment and everything in it (variables and their
+    /// history). Every project must keep at least one environment, so
+    /// removing the last one is an error rather than leaving the project
+    /// with none.
+    pub fn remove_environment(
+        &self,
+        project_name: &str,
+        environment_name: &str,
+        passphrase: &str,
+    ) -> Result<()> {
+        let _lock = self.store.lock()?;
+        let mut vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get_mut(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+
+        if !project.environments.contains_key(environment_name) {
+            return Err(EnvltError::EnvironmentNotFound {
+                project: project_name.to_owned(),
+                name: environment_name.to_owned(),
+            });
+        }
+        if project.environments.len() <= 1 {
+            return Err(EnvltError::CannotRemoveLastEnvironment {
+                project: project_name.to_owned(),
+                name: environment_name.to_owned(),
+            });
+        }
+
+        project.environments.remove(environment_name);
+        project.touch();
+        vault.touch();
+        self.store.save(&vault, passphrase)
+    }
+
+    /// Pin `environment_name` as `project_root`'s default environment by
+    /// writing it into `.envlt-link`, after confirming the environment
+    /// actually exists (so a typo doesn't silently link to nothing).
+    pub fn use_environment(
+        &self,
+        project_name: &str,
+        environment_name: &str,
+        project_root: &Path,
+        passphrase: &str,
+    ) -> Result<()> {
+        let vault = self.store.load(passphrase)?;
+        let project =
+            vault
+                .projects
+                .get(project_name)
+                .ok_or_else(|| EnvltError::ProjectNotFound {
+                    name: project_name.to_owned(),
+                })?;
+        require_environment(project, project_name, environment_name)?;
+
+        write_project_link_with_environment(project_root, project_name, Some(environment_name))
     }
 
     /// Reconstruct the full change history for every variable in one
@@ -2239,6 +2304,110 @@ mod tests {
         assert!(service
             .add_environment("test-project", DEFAULT_ENVIRONMENT, "passphrase")
             .is_err());
+    }
+
+    #[test]
+    fn remove_environment_deletes_it_and_its_variables() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .add_environment("test-project", "staging", "passphrase")
+            .expect("add environment");
+
+        service
+            .remove_environment("test-project", "staging", "passphrase")
+            .expect("remove environment");
+
+        let environments = service
+            .list_environments("test-project", "passphrase")
+            .expect("list environments");
+        assert_eq!(environments, vec![DEFAULT_ENVIRONMENT.to_owned()]);
+        assert!(service
+            .project_variables("test-project", "staging", "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn remove_environment_rejects_removing_the_last_one() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        assert!(service
+            .remove_environment("test-project", DEFAULT_ENVIRONMENT, "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn remove_environment_rejects_an_unknown_name() {
+        let home = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .add_environment("test-project", "staging", "passphrase")
+            .expect("add environment");
+
+        assert!(service
+            .remove_environment("test-project", "ghost", "passphrase")
+            .is_err());
+    }
+
+    #[test]
+    fn use_environment_pins_the_environment_in_envlt_link() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+        service
+            .add_environment("test-project", "staging", "passphrase")
+            .expect("add environment");
+
+        service
+            .use_environment("test-project", "staging", project_dir.path(), "passphrase")
+            .expect("use environment");
+
+        let link_content =
+            fs::read_to_string(project_dir.path().join(".envlt-link")).expect("read link");
+        assert!(link_content.contains("staging"));
+    }
+
+    #[test]
+    fn use_environment_rejects_an_unknown_environment() {
+        let home = TempDir::new().expect("tempdir");
+        let project_dir = TempDir::new().expect("tempdir");
+        let store = VaultStore::new(home.path().to_path_buf());
+        let service = AppService::new(store);
+
+        service.init_vault("passphrase").expect("init");
+        service
+            .add_project_from_env_str("test-project", "PORT=3000", None, "passphrase")
+            .expect("add project");
+
+        assert!(service
+            .use_environment("test-project", "ghost", project_dir.path(), "passphrase")
+            .is_err());
+        assert!(!project_dir.path().join(".envlt-link").exists());
     }
 
     #[test]

@@ -13,7 +13,7 @@ use commands::{
     completions::{run_completions, CompletionShell},
     diff::run_diff,
     doctor::run_doctor,
-    env::{run_env_add, run_env_list},
+    env::{run_env_add, run_env_list, run_env_remove, run_env_use},
     export::run_export,
     gen::{run_gen, GenOptions},
     history::run_history,
@@ -63,6 +63,10 @@ fn real_main() -> Result<ExitCode> {
         Commands::Env { command } => match command {
             EnvCommands::List { project, format } => run_env_list(&service, &project, format),
             EnvCommands::Add { name, project } => run_env_add(&service, &name, &project),
+            EnvCommands::Remove { name, project, yes } => {
+                run_env_remove(&service, &name, &project, yes)
+            }
+            EnvCommands::Use { name, project } => run_env_use(&service, &name, &project),
         },
         Commands::Vars {
             project,
@@ -497,6 +501,34 @@ enum EnvCommands {
     #[command(about = "Add a new, empty environment to a project")]
     Add {
         #[arg(help = "Environment name to add, e.g. staging or prod")]
+        name: String,
+        #[arg(
+            long,
+            help = "Project to update; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+    },
+    #[command(
+        about = "Remove an environment and all its variables",
+        long_about = "Remove an environment and everything in it, including every variable's version history. A project must always keep at least one environment, so removing the last one is an error. Asks for confirmation unless --yes is given."
+    )]
+    Remove {
+        #[arg(help = "Environment name to remove")]
+        name: String,
+        #[arg(
+            long,
+            help = "Project to update; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(long, short = 'y', help = "Skip the confirmation prompt")]
+        yes: bool,
+    },
+    #[command(
+        about = "Set the default environment for the current directory",
+        long_about = "Pin an environment as this directory's default by writing it into .envlt-link, so --env can be omitted on later commands run from here. Fails if the environment doesn't exist."
+    )]
+    Use {
+        #[arg(help = "Environment name to default to, e.g. staging or prod")]
         name: String,
         #[arg(
             long,

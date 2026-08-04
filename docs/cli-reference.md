@@ -13,6 +13,8 @@ This document describes the current CLI surface.
 | `envlt remove <project>` | Remove a stored project |
 | `envlt env list` | List a project's environments |
 | `envlt env add <name>` | Add a new, empty environment to a project |
+| `envlt env remove <name>` | Remove an environment and all its variables |
+| `envlt env use <name>` | Pin the default environment for the current directory |
 | `envlt vars` | Show variables and types |
 | `envlt history` | Show the activity log for a project or variable |
 | `envlt check` | Verify a project against `.env.example` |
@@ -39,12 +41,12 @@ For setup and recovery paths, see [Troubleshooting](troubleshooting.md).
 
 ## Environments
 
-Every project has at least one environment (`local`, seeded automatically by `add`/`init`); `envlt env add <name>` creates more, e.g. `staging` or `prod`. Variables are fully duplicated per environment -- there is no inheritance between them, so a variable set in `local` has no effect on `staging` until you explicitly set it there too.
+Every project has at least one environment (`local`, seeded automatically by `add`/`init`); `envlt env add <name>` creates more, e.g. `staging` or `prod`. Variables are fully duplicated per environment -- there is no inheritance between them, so a variable set in `local` has no effect on `staging` until you explicitly set it there too. A project must always keep at least one environment; `envlt env remove` refuses to delete the last one.
 
 `vars`, `set`, `unset`, `history`, `check`, `use`, `run`, `gen`, and `export` all accept `--env <NAME>`, resolved in this order:
 
 1. the explicit `--env` flag
-2. the environment recorded on the nearest `.envlt-link` (not currently written by any command, so this step is a no-op today)
+2. the environment recorded on the nearest `.envlt-link`, set with `envlt env use <name>`
 3. `local`
 
 `diff` accepts both `--env` and `--other-env`; see [`envlt diff`](#envlt-diff) below.
@@ -176,6 +178,33 @@ Behavior:
 
 - fails if the environment already exists
 - the new environment starts empty; it does not inherit variables from any other environment
+
+#### `envlt env remove <name> [--project <name>] [--yes]`
+
+```bash
+envlt env remove staging --project api-payments
+envlt env remove staging --project api-payments --yes
+```
+
+Behavior:
+
+- deletes the environment and everything in it, including every variable's version history -- this cannot be undone
+- asks for confirmation by default; `--yes` skips it, for automation
+- fails if the environment doesn't exist, or if it's the project's only remaining environment (every project must keep at least one)
+- there is no rename; recreate the environment and re-set its variables instead
+
+#### `envlt env use <name> [--project <name>]`
+
+```bash
+envlt env use staging --project api-payments
+envlt env use staging
+```
+
+Behavior:
+
+- pins `<name>` as the current directory's default environment by writing it into `.envlt-link`, so later `--env`-aware commands run from here can omit `--env`
+- fails if the environment doesn't exist in the vault, so a typo doesn't silently link to nothing
+- re-run it to switch a directory's default to a different (existing) environment at any time
 
 Output formats (`env list`):
 
