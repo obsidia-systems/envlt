@@ -72,16 +72,21 @@ jobs:
     name: Supply-chain checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # cargo-audit is compiled from source by the action below, and its own
+    # dependency tree's MSRV can (and has) outpaced rust-toolchain.toml's
+    # pinned version. Installing a newer "stable" toolchain isn't enough on
+    # its own: rustup auto-detects rust-toolchain.toml in the checked-out
+    # repo and applies it to every cargo/rustc invocation run from within
+    # it, overriding whatever toolchain was just installed as "default".
+    # RUSTUP_TOOLCHAIN outranks that file in rustup's resolution order, so
+    # it's the actual way to force this job onto latest stable.
+    env:
+      RUSTUP_TOOLCHAIN: stable
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # cargo-audit is compiled from source by the action below, and its
-      # own dependency tree's MSRV can (and has) outpaced the Rust version
-      # baked into the runner image. Always install the latest stable
-      # toolchain here (unpinned, unlike rust-toolchain.toml) so this job
-      # never falls behind what cargo-audit itself requires to build.
       - name: Install latest stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 

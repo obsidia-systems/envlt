@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-04
+
+### Fixed
+
+- Fixed `supply-chain` failing to install `cargo-audit` when its own dependency tree's MSRV outpaces `rust-toolchain.toml`'s pinned version (e.g. `kstring` requiring a newer rustc than 1.95.0): installing a fresh `stable` toolchain in that job wasn't enough on its own, because rustup auto-detects `rust-toolchain.toml` in the checked-out repo and applies its pin to every `cargo`/`rustc` invocation run from within it, silently overriding whatever toolchain the previous step just installed. Setting `RUSTUP_TOOLCHAIN: stable` on the job -- which outranks the toolchain file in rustup's resolution order -- is what actually forces it onto latest stable
+
 ## [0.5.0] - 2026-08-04
 
 ### Added
@@ -17,7 +23,7 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 - The top-level command listing in `--help` (and the declaration order in `main.rs`) is now grouped by theme (project lifecycle → environments → variables → execution → generation → transfer → diagnostics → auth) instead of the order commands happened to be added in
 - `release.yml` gained a `verify` job (fmt, clippy, test) that `build` now depends on, so a tag pushed from a commit that never went through `ci.yml` (a direct hotfix tag, or one pushed before the post-merge CI run finishes) can no longer produce release artifacts that skipped those checks
 - `.github/dependabot.yml` now tracks both `cargo` and `github-actions` dependencies weekly, grouped into a single PR per ecosystem, instead of version pins going stale until someone notices manually
-- CI: `ci.yml`'s formatting check moved out of the OS matrix into its own job (rustfmt output doesn't vary by platform, so running it once instead of twice saves a redundant checkout+toolchain+cache cycle); `pull_request`/`push` now skip the workflow entirely for docs-only changes (`docs/**`, `**.md`); added `concurrency`/`cancel-in-progress` so superseded pushes to the same branch stop wasting minutes on stale runs; added `timeout-minutes` to every job in both `ci.yml` and `release.yml`; the `supply-chain` job now restores a Cargo cache too, since `cargo-audit` was being recompiled from source on every run; `actions/checkout` is now `v5` in both workflows (previously `v4` in `ci.yml`, `v5` in `release.yml`)
+- CI: `ci.yml`'s formatting check moved out of the OS matrix into its own job (rustfmt output doesn't vary by platform, so running it once instead of twice saves a redundant checkout+toolchain+cache cycle); `pull_request`/`push` now skip the workflow entirely for docs-only changes (`docs/**`, `**.md`); added `concurrency`/`cancel-in-progress` so superseded pushes to the same branch stop wasting minutes on stale runs; added `timeout-minutes` to every job in both `ci.yml` and `release.yml`; the `supply-chain` job now restores a Cargo cache too, so `cargo-audit` isn't recompiled from source on every run; `actions/checkout` is now `v5` in both workflows (previously `v4` in `ci.yml`, `v5` in `release.yml`)
 
 ### Changed
 
