@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-04
+
 ### Added
 
 - **Environments**: a project's variables now live under one or more named environments (`local` by default, plus e.g. `staging`/`prod`), fully duplicated per environment with no inheritance between them. New `envlt env list`/`envlt env add <name>` commands, and a `--env <NAME>` flag on `vars`, `get`, `set`, `unset`, `history`, `check`, `pull`, `run`, `gen`, and `export` (resolved as: explicit `--env` → the environment recorded on `.envlt-link` → `local`). `diff` gains `--env`/`--other-env`; when a second project name is omitted but `--other-env` is given, it compares two environments of the same project
