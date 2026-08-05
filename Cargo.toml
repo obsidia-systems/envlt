@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/envlt-core", "crates/envlt-cli"]
+members = ["crates/envlt-core", "crates/envlt-cli", "crates/envlt-tui"]
 resolver = "2"
 
 [workspace.package]
@@ -26,6 +26,8 @@ keyring = "4"
 predicates = "3"
 rand = "0.10"
 rpassword = "=7.5.4"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29"] }
+crossterm = "0.29"
 scrypt = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

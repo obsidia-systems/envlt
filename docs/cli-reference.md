@@ -55,6 +55,19 @@ Every project has at least one environment (`local`, seeded automatically by `ad
 
 ## Commands
 
+### `envlt tui`
+
+Open the read-only interactive terminal interface. Running `envlt` without a
+subcommand opens this same interface. With a Project link it opens the linked
+Project and Environment; without one it opens a selectable list of Vault
+Projects. It shows Variable names, types, and update times; Secret values are
+never displayed. Use `q`, `Esc`, or `Ctrl-C` to exit.
+
+```bash
+envlt tui
+envlt tui --project api-payments --env staging
+```
+
 ### `envlt init`
 
 Initialize the local encrypted vault.

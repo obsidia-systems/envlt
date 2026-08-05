@@ -32,7 +32,7 @@ use commands::{
     unset::run_unset,
     vars::run_vars,
 };
-use envlt_core::{AppService, VaultStore};
+use envlt_core::{link::find_project_link, AppService, VaultStore};
 use output::OutputFormat;
 
 fn main() -> ExitCode {
@@ -50,7 +50,12 @@ fn real_main() -> Result<ExitCode> {
     let store = VaultStore::from_env()?;
     let service = AppService::new(store);
 
-    match args.command {
+    let command = args.command.unwrap_or(Commands::Tui {
+        project: None,
+        env: None,
+    });
+
+    match command {
         Commands::Init => run_init(&service),
         Commands::Add {
             project,
@@ -154,6 +159,7 @@ fn real_main() -> Result<ExitCode> {
             key,
             format,
         } => run_history(&service, &project, &env, key.as_deref(), format),
+        Commands::Tui { project, env } => run_tui(&service, project.as_deref(), env.as_deref()),
         Commands::Doctor { decrypt, format } => run_doctor(&service, decrypt, format),
         Commands::Completions { shell } => run_completions(shell),
         Commands::Man { out } => run_man(&out),
@@ -163,6 +169,26 @@ fn real_main() -> Result<ExitCode> {
             AuthCommands::Status { format } => run_auth_status(&service, format),
         },
     }
+}
+
+fn run_tui(
+    service: &AppService,
+    explicit_project: Option<&str>,
+    explicit_environment: Option<&str>,
+) -> Result<ExitCode> {
+    let current_dir = std::env::current_dir()?;
+    let passphrase = cli::read_passphrase(service.store(), false)?;
+    let context = if explicit_project.is_none() && find_project_link(&current_dir)?.is_none() {
+        envlt_tui::TuiContext::project_list()
+    } else {
+        let project_name = service.resolve_project_name(explicit_project, Some(&current_dir))?;
+        let environment_name = cli::resolve_environment(explicit_environment, Some(&current_dir))?;
+        envlt_tui::TuiContext::project(project_name, environment_name)
+    };
+
+    envlt_tui::run(service, context, &passphrase)?;
+
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Bold headers/usage, green literals (command and flag names), cyan
@@ -187,12 +213,12 @@ fn styles() -> Styles {
     version,
     about = "Local-first encrypted environment vault",
     long_about = "envlt stores project environment variables in an encrypted local vault, regenerates .env files when needed, and can run commands with injected variables without requiring a cloud service.",
-    after_help = "Quick start:\n  envlt init\n  envlt add my-project\n  envlt vars --project my-project\n  envlt run --project my-project -- npm start\n\nRunning `envlt` with no arguments is reserved for a future interactive mode; use `envlt --help` or `envlt <command> --help` explicitly.\n\nMore: https://github.com/obsidia-systems/envlt/tree/main/docs",
+    after_help = "Quick start:\n  envlt init\n  envlt add my-project\n  envlt                 # opens the interactive terminal interface\n  envlt run --project my-project -- npm start\n\nMore: https://github.com/obsidia-systems/envlt/tree/main/docs",
     styles = styles()
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -564,6 +590,23 @@ enum Commands {
         format: OutputFormat,
         #[arg(help = "Variable key to show history for")]
         key: Option<String>,
+    },
+    #[command(
+        about = "Open the interactive terminal interface",
+        long_about = "Open a read-only terminal interface for a project environment. The TUI uses the same project and environment resolution as other commands and never displays Secret values.",
+        after_help = "Examples:\n  envlt tui\n  envlt tui --project my-project\n  envlt tui --project my-project --env staging"
+    )]
+    Tui {
+        #[arg(
+            long,
+            help = "Project to inspect; falls back to .envlt-link when omitted"
+        )]
+        project: Option<String>,
+        #[arg(
+            long,
+            help = "Environment to inspect; falls back to .envlt-link, then \"local\""
+        )]
+        env: Option<String>,
     },
     #[command(
         about = "Run local diagnostics for the vault and project link state",

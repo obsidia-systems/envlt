@@ -1,0 +1,17 @@
+[package]
+name = "envlt-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+crossterm.workspace = true
+envlt-core = { path = "../envlt-core" }
+ratatui.workspace = true
+
+[lints]
+workspace = true
