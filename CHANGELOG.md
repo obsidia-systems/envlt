@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped several `workspace.dependencies` versions via a grouped Dependabot update: `age` 0.10 → 0.12, `rand` 0.8 → 0.10, `scrypt` 0.11 → 0.12, `chacha20poly1305` 0.10 → 0.11, `thiserror` 1 → 2, `toml` 0.8 → 1.1, `base64` 0.21 → 0.22, `dirs` 5 → 6, `clap_mangen` 0.2 → 0.3, `comfy-table` 7.1.4 → 7.2.2, `rpassword` 7.4.0 → 7.5.4
+
+### Fixed
+
+- Migrated `vault/crypto.rs`, `bundle/format.rs`, and `gen/mod.rs` to the breaking API changes in the `age`/`rand`/`scrypt` bump above, which had been merged with these left unaddressed: `age::Decryptor` is no longer an enum with a `Passphrase` variant (passphrase decryption now goes through `age::scrypt::Identity`), `rand::rngs::OsRng`/`RngCore` were replaced by `rand::rngs::SysRng` and the fallible `TryRng` trait, and `scrypt::Params::new` dropped its output-length parameter (the output buffer's length is what determines it, which this code already relied on for the actual key derivation)
+
 ## [0.5.1] - 2026-08-04
 
 ### Fixed
