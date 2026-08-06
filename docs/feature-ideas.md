@@ -214,16 +214,37 @@ The items below are grouped by **domain affinity** and **dependency**. Each entr
 | **11. Supply-Chain** | — | 2 (Auth), overall trust | Independent release-hygiene work. |
 
 ### Key Dependency Chain
-```text
-1 (Vault Durability) ─┬→ 4 (Safe-Output Tests)
-2 (Auth Hardening) ───┤
-3 (Link Resolution) ──┼→ 7 (TUI) ──┐
-5 (Migration) ────────┴→ 8 (Environments) ─┘
-6 (Bundle) ───────────────────────────────┘
-9 (Config) ───────────────────────────────┘
-10 (Run) ─────────────────────────────────┘
-11 (Supply-Chain) ────────────────────────┘
+
+```mermaid
+flowchart LR
+    classDef done fill:#2f6,stroke:#090,color:#000
+    classDef pending fill:#fc6,stroke:#960,color:#000
+
+    I1["1. Vault Durability"]:::done
+    I2["2. Auth Hardening"]:::done
+    I3["3. Link Resolution"]:::done
+    I4["4. Safe-Output Tests"]:::done
+    I5["5. Migration Infra"]:::done
+    I6["6. Bundle Sharing"]:::done
+    I7["7. Terminal UI"]:::pending
+    I8["8. Environments"]:::done
+    I9["9. Config File"]:::done
+    I10["10. Improve run"]:::pending
+    I11["11. Supply-Chain"]:::done
+
+    I1 --> I4
+    I5 -->|hard prerequisite| I8
+    I3 --> I8
+    I6 --> I8
+    I4 --> I8
+    I3 --> I7
+    I4 --> I7
+    I9 --> I7
+    I9 --> I10
+    I8 --> I10
 ```
+
+Green = done, orange = pending. Arrows point from a prerequisite toward what it unblocks; see the table above for the reasoning behind each edge.
 
 ### Suggested Implementation Order
 
