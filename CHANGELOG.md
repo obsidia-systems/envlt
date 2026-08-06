@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and the project intends to follow Seman
 
 ### Changed
 
+- **Breaking**: `--format raw` is removed from every command that accepted it (`vars`, `list`, `env list`, `diff`, `history`, `doctor`, `auth status`, `generate --list-types`). Every command already had a complete `--format table` implementation independent of `raw`, and `raw`/`json` overlapped in purpose (both existed for scripting) without either filling a gap the other couldn't. `--format json` is now the only supported automation format; `--format table` (default) is for humans
 - Bumped several `workspace.dependencies` versions via a grouped Dependabot update: `age` 0.10 → 0.12, `rand` 0.8 → 0.10, `scrypt` 0.11 → 0.12, `chacha20poly1305` 0.10 → 0.11, `thiserror` 1 → 2, `toml` 0.8 → 1.1, `base64` 0.21 → 0.22, `dirs` 5 → 6, `clap_mangen` 0.2 → 0.3, `comfy-table` 7.1.4 → 7.2.2, `rpassword` 7.4.0 → 7.5.4
 
 ### Fixed

@@ -72,7 +72,7 @@ Operational notes:
 Useful CI-style checks are still possible without exposing values. For example, validate that the local vault matches the committed `.env.example` contract:
 
 ```bash
-envlt diff --example .env.example --format raw
+envlt diff --example .env.example --format json
 ```
 
 For local automation, provide the vault passphrase through the environment:
@@ -132,8 +132,8 @@ Safe commands to ask an agent to run:
 ```bash
 envlt doctor
 envlt doctor --decrypt
-envlt vars --format raw
-envlt diff --example .env.example --format raw
+envlt vars --format json
+envlt diff --example .env.example --format json
 ```
 
 Avoid asking an agent to run commands that reveal or create plaintext secrets unless you explicitly intend that behavior:

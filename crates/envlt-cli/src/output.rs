@@ -6,7 +6,6 @@ use serde_json::{Map, Value};
 pub enum OutputFormat {
     #[default]
     Table,
-    Raw,
     Json,
 }
 
@@ -25,13 +24,6 @@ pub fn render_table(headers: &[&str], rows: &[Vec<String>]) -> String {
     }
 
     table.to_string()
-}
-
-pub fn render_raw_rows(rows: &[Vec<String>]) -> String {
-    rows.iter()
-        .map(|row| row.join("\t"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 pub fn rows_to_json_objects(headers: &[&str], rows: &[Vec<String>]) -> Value {

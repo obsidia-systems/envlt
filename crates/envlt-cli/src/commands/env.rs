@@ -5,7 +5,7 @@ use envlt_core::AppService;
 use serde_json::to_string_pretty;
 
 use crate::cli::{confirm_action, print_success, read_passphrase};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_env_list(
     service: &AppService,
@@ -24,7 +24,6 @@ pub fn run_env_list(
 
     match format {
         OutputFormat::Table => println!("{}", render_table(&headers, &rows)),
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json)?);

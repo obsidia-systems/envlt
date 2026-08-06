@@ -6,7 +6,7 @@ use envlt_core::{AppService, VarType};
 use serde_json::to_string_pretty;
 
 use crate::cli::{read_passphrase, resolve_environment};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_vars(
     service: &AppService,
@@ -22,7 +22,7 @@ pub fn run_vars(
     if variables.is_empty() {
         match format {
             OutputFormat::Json => println!("[]"),
-            OutputFormat::Raw | OutputFormat::Table => println!("No variables found."),
+            OutputFormat::Table => println!("No variables found."),
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -42,7 +42,6 @@ pub fn run_vars(
 
     match format {
         OutputFormat::Table => println!("{}", render_table(&headers, &rows)),
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json)?);

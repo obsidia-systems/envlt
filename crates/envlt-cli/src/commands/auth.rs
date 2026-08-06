@@ -39,11 +39,6 @@ pub fn run_auth_status(service: &AppService, format: OutputFormat) -> Result<Exi
     };
 
     match format {
-        OutputFormat::Raw => {
-            println!("env\t{env_value}");
-            println!("keyring\t{keyring_value}");
-            println!("target\t{}", status.keyring_target);
-        }
         OutputFormat::Table => {
             let rows = vec![
                 vec!["env".to_owned(), env_value.to_owned()],
