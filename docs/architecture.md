@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the current implemented architecture, not the aspirational end-state from the original project definition.
+This document describes the current implemented architecture, not any future or aspirational direction -- see [Roadmap](roadmap.md) for that.
 
 ## Workspace layout
 
@@ -91,6 +91,34 @@ Current `VarType` values:
 - `Plain` -- shown in full in output
 
 `Config` existed as a third value historically but was merged into `Plain` since nothing in the codebase ever treated them differently. Old vaults and bundles with a stored `Config` value still deserialize correctly (`#[serde(alias = "Config")]` on `Plain`) and are rewritten as `Plain` the next time they are saved.
+
+```mermaid
+erDiagram
+    VAULT ||--o{ PROJECT : stores
+    PROJECT ||--|{ ENVIRONMENT : "has (>= 1)"
+    ENVIRONMENT ||--o{ VARIABLE : "owns (no inheritance)"
+    VARIABLE ||--|{ VARIABLE_VERSION : "ordered history, oldest to newest"
+
+    PROJECT {
+        string name
+        string path "optional"
+    }
+    ENVIRONMENT {
+        string name "e.g. local, staging, prod"
+    }
+    VARIABLE {
+        string key
+        string description "optional"
+        datetime deleted_at "tombstone, optional"
+    }
+    VARIABLE_VERSION {
+        string value
+        string var_type "Secret or Plain"
+        datetime created_at
+    }
+```
+
+Variables are duplicated per environment rather than inherited, so the same diagram applies independently to `local`, `staging`, and every other environment on a project.
 
 ### Environments
 

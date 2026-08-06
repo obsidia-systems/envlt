@@ -32,6 +32,31 @@ The main assets are:
 - a child process launched by `envlt run` is allowed to read the injected environment variables
 - a generated `.env` file is plaintext and must be treated as sensitive
 
+```mermaid
+flowchart TB
+    subgraph OS["Local OS user session (trust boundary)"]
+        User([Developer])
+        CLI[envlt CLI]
+        Keyring[("System keyring<br/>opt-in via `auth save`")]
+        Vault[("vault.age<br/>encrypted on disk")]
+        Child["Child process<br/>(envlt run)"]
+    end
+    EnvFile["Materialized .env file<br/>(envlt pull)<br/>plaintext on disk"]
+    Outside["Anything with same-user filesystem access:<br/>other tools, AI coding assistants, scripts"]
+
+    User -->|passphrase| CLI
+    CLI <-->|save / load| Keyring
+    CLI <-->|encrypt / decrypt| Vault
+    CLI -->|inject vars in memory, no file written| Child
+    CLI -.->|writes plaintext to disk| EnvFile
+    EnvFile -.->|readable by| Outside
+
+    style EnvFile fill:#f66,stroke:#900,color:#000
+    style Outside fill:#f66,stroke:#900,color:#000
+```
+
+`envlt run` (solid arrows) keeps every step inside the OS user session's trust boundary. `envlt pull` (dashed arrows) deliberately crosses it: the moment a `.env` file is materialized, the assets it contains are exposed to anything with same-user filesystem access, not only `envlt`.
+
 ## Protects Against
 
 `envlt` is intended to help with:

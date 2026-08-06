@@ -10,10 +10,29 @@
 
 <p align="center">
   <a href="https://github.com/obsidia-systems/envlt/actions/workflows/ci.yml"><img src="https://github.com/obsidia-systems/envlt/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/obsidia-systems/envlt/releases/latest"><img src="https://img.shields.io/github/v/release/obsidia-systems/envlt" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
   <a href="https://github.com/obsidia-systems/envlt"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue" alt="Platform"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-1.95%2B-orange" alt="Rust 1.95+"></a>
 </p>
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Problem](#problem)
+- [Mental Model](#mental-model)
+- [Why `envlt`](#why-envlt)
+- [Quick Comparison](#quick-comparison)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Command Overview](#command-overview)
+- [Security](#security)
+- [Documentation](#documentation)
+- [Project Status](#project-status)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Overview
 
@@ -51,8 +70,6 @@ with this:
 
 The encrypted vault is your source of truth. `.env` files become generated artifacts only when needed.
 
-## Real-world Before/After
-
 Before:
 
 ```bash
@@ -71,8 +88,9 @@ envlt run node server.js
 
 - Local-first: no account, no remote service, no required network dependency
 - Safer by default: encrypted vault, masked secret output, secure generator behavior
+- Multi-environment: `local`, `staging`, `prod`, ... fully isolated, no accidental inheritance
 - Portable: share project snapshots with `.evlt` bundles
-- Practical: use `run`, `pull`, `diff`, `vars`, `get`, `generate`, `doctor`, and `auth` from a single CLI
+- Practical: use `run`, `pull`, `diff`, `vars`, `get`, `history`, `generate`, `doctor`, and `auth` from a single CLI
 - Built for the AI-agent era: `envlt run` injects variables into a process without ever writing a `.env` file, and `envlt doctor` warns if one is left lying around next to a linked project
 
 ## Quick Comparison
@@ -83,37 +101,58 @@ envlt run node server.js
 | Team handoff | copy/paste or shared files | encrypted `.evlt` bundle |
 | Run app locally | depends on current `.env` state | deterministic with `envlt run` |
 | Regenerate files | manual edits and drift risk | `envlt pull` from vault state |
+| Per-environment config | separate `.env.staging`, `.env.prod` files | `--env` on any command, same vault |
+| Change history | none, unless you grep Git history for a deleted line | `envlt history`, per variable |
 | Offline usage | yes | yes |
-
-## Status
-
-Current implementation state:
-
-- Phase 1: complete and extended
-- Phase 2: implemented
-- Phase 3: implemented for the current packaging milestone
-
-Still intentionally out of scope for now:
-
-- cloud sync
-- GUI app
 
 ## Features
 
 - encrypted local vault using `age`
-- atomic writes with `vault.age.bak` backup
+- atomic writes with `vault.age.bak` + rotated backups
 - `.env` and `.env.example` import
-- `.envlt-link` project resolution
+- `.envlt-link` project resolution, including from monorepo subdirectories
 - typed variables: `Secret`, `Plain`
+- multiple named environments per project, fully isolated (no inheritance)
+- full per-variable version history, reconstructed on demand (`envlt history`)
 - optional system keyring support for vault passphrase reuse
-- secret-aware variable listing
+- secret-aware variable listing and single-value scripting (`envlt get`)
 - project removal with confirmation
-- project-to-example and project-to-project diffing
-- secure secret generation with interactive flow
-- encrypted `.evlt` export/import
+- project-to-example and project-to-project (or environment-to-environment) diffing
+- secure secret generation with an interactive flow
+- encrypted `.evlt` export/import, scoped to one environment at a time
+- shell completions (bash, zsh, fish, powershell, elvish) and generated man pages
 - local diagnostics through `envlt doctor`
 
-## First 5 Minutes
+## Installation
+
+Homebrew is the recommended install path:
+
+```bash
+brew install obsidia-systems/tap/envlt
+envlt --help
+```
+
+Cargo, for contributors and local development:
+
+```bash
+cargo install --path crates/envlt-cli
+envlt --help
+```
+
+Manual install from [GitHub Releases](https://github.com/obsidia-systems/envlt/releases/latest):
+
+```bash
+tar -xzf envlt-linux-x86_64.tar.gz
+chmod +x envlt
+sudo mv envlt /usr/local/bin/envlt
+envlt --help
+```
+
+On macOS, you may need to remove the quarantine attribute from a manually downloaded binary before first run: `xattr -d com.apple.quarantine ./envlt`.
+
+Windows users: run `envlt` under WSL. Native Windows packaging and Apple notarization aren't on the current roadmap -- see [Roadmap](docs/roadmap.md).
+
+## Quick Start
 
 ```bash
 envlt init
@@ -133,60 +172,19 @@ envlt import bundle.evlt
 envlt doctor --decrypt
 ```
 
-Secret generation examples:
+Secret generation:
 
 ```bash
 envlt generate --type jwt-secret --set JWT_SECRET --project api-payments
 envlt generate --type jwt-secret --set JWT_SECRET --project api-payments --show
 ```
 
-If the current directory contains `.envlt-link`, these commands can resolve the project automatically:
+If the current directory contains `.envlt-link`, these commands resolve the project (and environment) automatically, so `--project`/`--env` can be omitted:
 
-- `vars`
-- `diff`
-- `set`
-- `pull`
-- `run`
-- interactive `generate` save flow
-
-## Installation
-
-### Current supported path
-
-Homebrew installation is available and is the recommended install path:
-
-```bash
-brew install obsidia-systems/tap/envlt
-envlt --help
-```
-
-Cargo installation is still supported for contributors and local development:
-
-```bash
-cargo install --path crates/envlt-cli
-envlt --help
-```
-
-### Install from GitHub Releases
-
-If a release asset already exists, a user can install `envlt` manually by downloading the archive, extracting the binary, and placing it on their `PATH`.
-
-Example:
-
-```bash
-tar -xzf envlt-linux-x86_64.tar.gz
-chmod +x envlt
-sudo mv envlt /usr/local/bin/envlt
-envlt --help
-```
-
-This remains a supported manual installation path in addition to Homebrew, but Homebrew is the recommended path for most users.
-
-### Development usage from the repository
-
-```bash
-cargo run -p envlt-cli -- --help
-```
+- `vars`, `get`, `set`, `unset`, `history`
+- `diff`, `check`
+- `pull`, `run`
+- `generate`'s interactive save flow
 
 ## How It Works
 
@@ -224,75 +222,60 @@ flowchart LR
 | `envlt import` | Import a `.evlt` bundle |
 | `envlt check` | Verify a project against `.env.example` |
 | `envlt diff` | Compare against `.env.example` or another project/environment |
-| `envlt history` | Show the activity log for a project or variable |
+| `envlt history` | Show version history for a project or variable |
 | `envlt doctor` | Diagnose vault and `.envlt-link` state |
 | `envlt completions` | Generate shell completion scripts |
 | `envlt man` | Generate man pages |
 | `envlt auth` | Manage stored vault authentication |
 
-## Security Notes
+Every command's full flag list and examples are also available via `envlt <command> --help`, and mirrored in the [CLI Reference](docs/cli-reference.md).
+
+## Security
 
 - the source of truth is an encrypted local vault at `~/.envlt/vault.age`
 - vault passphrases can optionally be stored in the system keyring for the current `ENVLT_HOME`
 - `envlt run` avoids writing `.env` files to disk -- nothing for an AI coding assistant or any other tool scanning the working directory to read
 - `envlt doctor` warns when a `.env` file is found next to a resolved `.envlt-link`
-- bundles use a passphrase independent from the main vault passphrase
+- bundles use a passphrase independent from the main vault passphrase, and carry exactly one environment at a time
 - `vars` masks `Secret` values
 - `diff` reports categorized changes without printing values
 - `generate --set` does not reveal generated values unless `--show` is explicitly used
 
-For details, see [Security](docs/security.md).
+For the full model, see [Security](docs/security.md) and [Threat Model](docs/threat-model.md).
 
 ## Documentation
 
 Start with:
 
 - [Documentation Index](docs/README.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Legacy Project Definition Summary (English)](docs/legacy-project-definition-summary.md)
-
-Primary documents:
-
 - [Getting Started](docs/getting-started.md)
+- [Troubleshooting](docs/troubleshooting.md)
+
+Reference:
+
 - [CLI Reference](docs/cli-reference.md)
 - [Architecture](docs/architecture.md)
 - [Security](docs/security.md)
 - [Threat Model](docs/threat-model.md)
 - [Integrations](docs/integrations.md)
 - [Roadmap](docs/roadmap.md)
-- [Spec Alignment](docs/spec-alignment.md)
-- [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
-## Development
+## Project Status
 
-Quality gates:
+`envlt` is under active development. The core local workflow is implemented and used daily by its maintainer: encrypted vault, multiple environments, full version history, `.evlt` bundle sharing, secret generation, shell completions/man pages, and diagnostics.
 
-```bash
-cargo fmt --all
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
-```
+Not implemented, and not currently planned:
 
-Repository release baseline already includes:
+- cloud sync
+- a GUI application
 
-- CI on Linux and macOS
-- release workflow scaffolding for tagged builds
+See [Roadmap](docs/roadmap.md) for what's actually next.
 
-## Distribution Status
+## Contributing
 
-What is already ready:
+Bug reports, feature ideas, and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, coding conventions, the documentation policy, and the PR checklist (`make check` must pass before review).
 
-- project documentation
-- license
-- changelog
-- contributor guide
-- CI workflow
-- release workflow
-- Homebrew tap and install path
+## License
 
-Current distribution policy:
-
-- Homebrew is the recommended install path
-- Windows users should use WSL
-- Apple signing and notarization are not part of the current roadmap
+`envlt` is licensed under the [MIT License](LICENSE).
