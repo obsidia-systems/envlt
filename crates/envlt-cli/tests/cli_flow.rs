@@ -1826,7 +1826,7 @@ fn vars_shows_last_modified_column() {
         .args(["vars", "--project", "vars-modified-project"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("last modified"));
+        .stdout(predicate::str::contains("LAST MODIFIED"));
 }
 
 #[test]

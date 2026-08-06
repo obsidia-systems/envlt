@@ -5,7 +5,19 @@ use envlt_core::AppService;
 use serde_json::{json, to_string_pretty};
 
 use crate::cli::{read_passphrase, resolve_environment};
-use crate::output::{render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{
+    render_table, render_table_styled, rows_to_json_objects, CellStyle, OutputFormat,
+};
+
+/// `ok`/shared items are the expected common case and stay unstyled; every
+/// other status (missing, extra, changed, left/right-only) is flagged.
+fn item_style(status: &str) -> CellStyle {
+    if status == "ok" {
+        CellStyle::Plain
+    } else {
+        CellStyle::Warn
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_diff(
@@ -60,13 +72,21 @@ pub fn run_diff(
             item_rows.push(vec!["extra".to_owned(), key.clone()]);
         }
 
+        let item_styles = item_rows
+            .iter()
+            .map(|row| vec![item_style(&row[0]), CellStyle::Plain])
+            .collect::<Vec<_>>();
+
         match format {
             OutputFormat::Table => {
                 println!("{}", render_table(&["field", "value"], &metadata_rows));
                 println!();
                 println!("{}", render_table(&["metric", "count"], &summary_rows));
                 println!();
-                println!("{}", render_table(&["status", "key"], &item_rows));
+                println!(
+                    "{}",
+                    render_table_styled(&["status", "key"], &item_rows, &item_styles)
+                );
             }
             OutputFormat::Json => {
                 let summary = rows_to_json_objects(&["metric", "count"], &summary_rows);
@@ -140,13 +160,21 @@ pub fn run_diff(
             item_rows.push(vec!["right_only".to_owned(), key.clone()]);
         }
 
+        let item_styles = item_rows
+            .iter()
+            .map(|row| vec![item_style(&row[0]), CellStyle::Plain])
+            .collect::<Vec<_>>();
+
         match format {
             OutputFormat::Table => {
                 println!("{}", render_table(&["field", "value"], &metadata_rows));
                 println!();
                 println!("{}", render_table(&["metric", "count"], &summary_rows));
                 println!();
-                println!("{}", render_table(&["status", "key"], &item_rows));
+                println!(
+                    "{}",
+                    render_table_styled(&["status", "key"], &item_rows, &item_styles)
+                );
             }
             OutputFormat::Json => {
                 let summary = rows_to_json_objects(&["metric", "count"], &summary_rows);
