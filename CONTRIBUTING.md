@@ -25,25 +25,28 @@ cargo run -p envlt-cli -- --help
 
 ## Branching strategy
 
-This project uses a simple branching model:
+This project uses a git-flow-style branching model:
 
-- `main` — the only long-lived branch. It should always be green.
-- `feature/<short-name>` — short-lived branches for new work.
+- `main` — always release-ready. Every tag is cut from here. Protected: PRs can only merge once CI is green.
+- `develop` — integration branch. Feature branches merge here first; `main` only moves forward by merging `develop` into it.
+- `feature/<short-name>` — short-lived branches for new work, branched from `develop` and merged back into `develop`.
 
-There is no `develop` or `staging` branch. Simplicity is preferred because `envlt` is a CLI tool with deliberate releases rather than continuous deployment.
+A hotfix that must land directly on `main` (for example, an urgent build-breaking fix) should still be merged into `develop` afterward so the two branches don't drift apart.
 
 ### Starting new work
 
 ```bash
-# Make sure main is up to date
-git checkout main
-git pull origin main
+# Make sure develop is up to date
+git checkout develop
+git pull origin develop
 
 # Create a feature branch
 git checkout -b feature/short-description
 
 # Work, commit, push
 git push -u origin feature/short-description
+
+# Open the PR against develop, not main
 ```
 
 ## Daily workflow
@@ -75,7 +78,7 @@ make check
 1. Run `make check` locally and fix any failures.
 2. Update documentation if behavior changes (see [Documentation policy](#documentation-policy)).
 3. Make sure `Cargo.lock` is included if dependencies changed.
-4. Open a PR against `main`.
+4. Open a PR against `develop`, not `main`.
 
 The CI workflow runs the same checks on every pull request. A PR should only be merged when CI passes.
 
@@ -114,7 +117,16 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 ### Before tagging
 
-Run the release checklist:
+Merge `develop` into `main` first (via PR, so it still goes through CI):
+
+```bash
+git checkout main
+git pull origin main
+git merge --no-ff develop
+git push origin main
+```
+
+Then run the release checklist:
 
 ```bash
 make release-check
