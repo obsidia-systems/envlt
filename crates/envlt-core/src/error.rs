@@ -204,9 +204,6 @@ pub enum EnvltError {
     /// TOML deserialization error.
     #[error("deserialization error: {0}")]
     TomlDeserialize(#[from] toml::de::Error),
-    /// `age` encryption error.
-    #[error("encryption error: {0}")]
-    AgeEncrypt(#[source] age::EncryptError),
     /// `age` decryption error.
     #[error("decryption error: {0}")]
     AgeDecrypt(#[source] age::DecryptError),

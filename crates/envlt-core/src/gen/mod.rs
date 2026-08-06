@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use rand::{rngs::OsRng, RngCore};
+use rand::rngs::SysRng;
+use rand::TryRng;
 use uuid::Uuid;
 
 use crate::{
@@ -123,7 +124,9 @@ pub fn generate_custom_value(len: usize, charset: Charset) -> Result<String> {
 
 fn generate_hex(byte_len: usize) -> String {
     let mut bytes = vec![0_u8; byte_len];
-    OsRng.fill_bytes(&mut bytes);
+    SysRng
+        .try_fill_bytes(&mut bytes)
+        .expect("failed to read system randomness");
     let mut output = String::with_capacity(byte_len * 2);
     for byte in bytes {
         use std::fmt::Write;
@@ -134,7 +137,9 @@ fn generate_hex(byte_len: usize) -> String {
 
 fn generate_base64url_chars(len: usize) -> String {
     let mut bytes = vec![0_u8; len];
-    OsRng.fill_bytes(&mut bytes);
+    SysRng
+        .try_fill_bytes(&mut bytes)
+        .expect("failed to read system randomness");
     let mut encoded = URL_SAFE_NO_PAD.encode(bytes);
     encoded.truncate(len);
     encoded
@@ -151,7 +156,9 @@ fn generate_from_alphabet(len: usize, alphabet: &[u8]) -> String {
 
     while output.len() < len {
         let mut byte = 0_u8;
-        OsRng.fill_bytes(std::slice::from_mut(&mut byte));
+        SysRng
+            .try_fill_bytes(std::slice::from_mut(&mut byte))
+            .expect("failed to read system randomness");
         if (byte as usize) >= max_valid {
             continue;
         }
@@ -169,7 +176,9 @@ fn generate_memorable_password(words: usize) -> String {
 
     while output.len() < words {
         let mut byte = 0_u8;
-        OsRng.fill_bytes(std::slice::from_mut(&mut byte));
+        SysRng
+            .try_fill_bytes(std::slice::from_mut(&mut byte))
+            .expect("failed to read system randomness");
         if (byte as usize) >= max_valid {
             continue;
         }
