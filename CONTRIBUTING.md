@@ -97,7 +97,6 @@ If behavior changes, update the relevant docs in the same PR:
 - `docs/getting-started.md`
 - `docs/cli-reference.md`
 - `docs/roadmap.md`
-- `docs/spec-alignment.md`
 
 ## Release workflow
 

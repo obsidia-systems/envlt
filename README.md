@@ -249,7 +249,6 @@ Start with:
 
 - [Documentation Index](docs/README.md)
 - [Troubleshooting](docs/troubleshooting.md)
-- [Legacy Project Definition Summary (English)](docs/legacy-project-definition-summary.md)
 
 Primary documents:
 
@@ -260,7 +259,6 @@ Primary documents:
 - [Threat Model](docs/threat-model.md)
 - [Integrations](docs/integrations.md)
 - [Roadmap](docs/roadmap.md)
-- [Spec Alignment](docs/spec-alignment.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 

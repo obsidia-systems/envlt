@@ -12,7 +12,6 @@ This directory contains the current technical documentation for `envlt`.
 - Architecture deep dive: [Architecture](architecture.md)
 - Product direction: [Roadmap](roadmap.md)
 - Troubleshooting and recovery: [Troubleshooting](troubleshooting.md)
-- Historical context (English summary): [Legacy Project Definition Summary](legacy-project-definition-summary.md)
 
 ## Recommended reading order
 
@@ -23,16 +22,10 @@ This directory contains the current technical documentation for `envlt`.
 5. [Threat Model](threat-model.md)
 6. [Integrations](integrations.md)
 7. [Roadmap](roadmap.md)
-8. [Spec Alignment](spec-alignment.md)
-9. [Releasing](releasing.md)
-10. [Troubleshooting](troubleshooting.md)
-11. [Contributing](../CONTRIBUTING.md)
-12. [Changelog](../CHANGELOG.md)
-
-Historical source document:
-
-- [Original Project Definition](project-definition.md)
-- [Legacy Project Definition Summary](legacy-project-definition-summary.md)
+8. [Releasing](releasing.md)
+9. [Troubleshooting](troubleshooting.md)
+10. [Contributing](../CONTRIBUTING.md)
+11. [Changelog](../CHANGELOG.md)
 
 ## Documentation map
 
@@ -46,8 +39,6 @@ flowchart TD
     F --> G[threat-model.md]
     B --> H[integrations.md]
     B --> I[roadmap.md]
-    B --> J[spec-alignment.md]
-    J --> K[project-definition.md]
 ```
 
 ## Document roles
@@ -62,8 +53,6 @@ flowchart TD
 | `threat-model.md` | Security boundaries, guarantees, non-goals, and assumptions |
 | `integrations.md` | Practical recipes for common local development workflows |
 | `roadmap.md` | What is still missing and what is planned next |
-| `spec-alignment.md` | Verification of the current implementation against the original specification |
-| `legacy-project-definition-summary.md` | English summary of the original definition and current status |
 | `releasing.md` | Release checklist, required inputs, and release workflow expectations |
 | `../CONTRIBUTING.md` | Contributor expectations and local development workflow |
 | `../CHANGELOG.md` | Project-level change history |

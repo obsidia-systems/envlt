@@ -61,8 +61,7 @@ Keep domain behavior in `envlt-core`. Keep `envlt-cli` focused on parsing, promp
 - `crates/envlt-cli/src/main.rs`: top-level CLI command dispatch.
 - `crates/envlt-cli/src/commands/*`: individual command adapters.
 - `crates/envlt-cli/tests/cli_flow.rs`: end-to-end CLI behavior tests.
-- `docs/recommendations-2026.md`: prioritized product and architecture recommendations.
-- `docs/envlt-tui-prototype.html`: static prototype for a possible interactive terminal UI concept.
+- `docs/feature-ideas.md`: prioritized product and architecture recommendations.
 
 ## Architecture Rules
 
@@ -138,8 +137,7 @@ If behavior changes, update relevant documentation in the same change:
 - `docs/cli-reference.md` for command, flag, or output changes.
 - `docs/security.md` and `docs/threat-model.md` for security boundary changes.
 - `docs/architecture.md` for crate/module/storage/flow changes.
-- `docs/roadmap.md` or `docs/recommendations-2026.md` for roadmap-level direction changes.
-- `docs/spec-alignment.md` when implementation alignment changes.
+- `docs/roadmap.md` or `docs/feature-ideas.md` for roadmap-level direction changes.
 
 Keep docs implementation-driven. Do not promise cloud sync, GUI, team policies, or remote services unless implemented.
 

@@ -69,7 +69,7 @@ sudo mv envlt /usr/local/bin/envlt
 envlt --help
 ```
 
-This means the project already supports manual binary distribution, even though Homebrew and native Linux package-manager installs are not implemented yet.
+This manual flow remains available alongside Homebrew (see [Current architecture coverage](#current-architecture-coverage) below); native Linux package-manager installs (`apt`, `dnf`, etc.) are not implemented yet.
 
 On macOS, users may also need to remove the quarantine attribute from a trusted downloaded binary before first execution:
 
