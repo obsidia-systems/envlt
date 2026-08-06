@@ -48,7 +48,15 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          # macos-latest is disabled here to avoid a hosted-runner job on
+          # every push/PR: the maintainer develops on macOS day-to-day
+          # already, and release.yml still builds+smoke-tests on
+          # macos-15/macos-15-intel for every tag, so macOS regressions
+          # still get caught before a release ships. Re-enable by
+          # uncommenting the line below -- and add "macos-latest" back to
+          # main's required status checks in branch protection, since it
+          # was removed from there when this was disabled.
+          # - macos-latest
 
     steps:
       - name: Checkout
