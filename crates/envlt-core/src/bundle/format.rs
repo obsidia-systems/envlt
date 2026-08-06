@@ -4,7 +4,8 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
 };
 use chrono::{DateTime, Utc};
-use rand::{rngs::OsRng, RngCore};
+use rand::rngs::SysRng;
+use rand::TryRng;
 use scrypt::{scrypt, Params};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
@@ -180,10 +181,14 @@ pub fn encrypt_project_bundle(
 ) -> Result<Vec<u8>> {
     let mut nonce = [0_u8; BUNDLE_NONCE_LEN];
     let mut salt = [0_u8; BUNDLE_SALT_LEN];
-    OsRng.fill_bytes(&mut nonce);
-    OsRng.fill_bytes(&mut salt);
+    SysRng
+        .try_fill_bytes(&mut nonce)
+        .expect("failed to read system randomness");
+    SysRng
+        .try_fill_bytes(&mut salt)
+        .expect("failed to read system randomness");
 
-    let kdf_params = Params::recommended();
+    let kdf_params = Params::RECOMMENDED;
     let header = BundleHeader {
         project: project.name.clone(),
         environment: environment_name.to_owned(),
@@ -197,9 +202,9 @@ pub fn encrypt_project_bundle(
 
     let plaintext = Zeroizing::new(toml::to_string(project)?);
     let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key.as_slice()));
+    let cipher = ChaCha20Poly1305::new(&Key::from(*key));
     let mut ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce), plaintext.as_bytes())
+        .encrypt(&Nonce::from(nonce), plaintext.as_bytes())
         .map_err(|_| EnvltError::BundleDecryptFailed)?;
 
     let tag_start = ciphertext
@@ -229,18 +234,17 @@ pub fn decrypt_project_bundle(bundle_bytes: &[u8], bundle_passphrase: &str) -> R
         archive.header.kdf_log_n,
         archive.header.kdf_r,
         archive.header.kdf_p,
-        BUNDLE_KEY_LEN,
     )
     .map_err(|_| EnvltError::InvalidBundleKdf)?;
     let key = derive_key(bundle_passphrase, &salt, &kdf_params)?;
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key.as_slice()));
+    let cipher = ChaCha20Poly1305::new(&Key::from(*key));
 
     let mut payload = archive.ciphertext;
     payload.extend_from_slice(&archive.tag);
 
     let plaintext = Zeroizing::new(
         cipher
-            .decrypt(Nonce::from_slice(&archive.nonce), payload.as_ref())
+            .decrypt(&Nonce::from(archive.nonce), payload.as_ref())
             .map_err(|_| EnvltError::BundleDecryptFailed)?,
     );
     let plaintext =
@@ -431,13 +435,13 @@ mod tests {
 
         let salt = [3_u8; super::BUNDLE_SALT_LEN];
         let nonce = [4_u8; super::BUNDLE_NONCE_LEN];
-        let params = Params::new(17, 8, 1, 32).expect("legacy params");
+        let params = Params::new(17, 8, 1).expect("legacy params");
         let mut key = [0_u8; 32];
         scrypt(b"legacy-password", &salt, &params, &mut key).expect("derive key");
 
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+        let cipher = ChaCha20Poly1305::new(&Key::from(key));
         let mut ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_bytes())
+            .encrypt(&Nonce::from(nonce), plaintext.as_bytes())
             .expect("encrypt");
         let tag: Vec<u8> = ciphertext.split_off(ciphertext.len() - super::BUNDLE_TAG_LEN);
 
