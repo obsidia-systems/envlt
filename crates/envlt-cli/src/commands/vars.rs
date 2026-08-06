@@ -6,7 +6,7 @@ use envlt_core::{AppService, VarType};
 use serde_json::to_string_pretty;
 
 use crate::cli::{read_passphrase, resolve_environment};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{render_table_styled, rows_to_json_objects, CellStyle, OutputFormat};
 
 pub fn run_vars(
     service: &AppService,
@@ -22,15 +22,26 @@ pub fn run_vars(
     if variables.is_empty() {
         match format {
             OutputFormat::Json => println!("[]"),
-            OutputFormat::Raw | OutputFormat::Table => println!("No variables found."),
+            OutputFormat::Table => println!("No variables found."),
         }
         return Ok(ExitCode::SUCCESS);
     }
 
     let headers = ["key", "type", "value", "last modified"];
+    let mut styles = Vec::new();
     let rows = variables
         .into_iter()
         .map(|variable| {
+            let type_style = match variable.var_type {
+                VarType::Secret => CellStyle::Warn,
+                VarType::Plain => CellStyle::Plain,
+            };
+            styles.push(vec![
+                CellStyle::Plain,
+                type_style,
+                CellStyle::Plain,
+                CellStyle::Plain,
+            ]);
             vec![
                 variable.key,
                 format_var_type(variable.var_type).to_owned(),
@@ -41,8 +52,7 @@ pub fn run_vars(
         .collect::<Vec<_>>();
 
     match format {
-        OutputFormat::Table => println!("{}", render_table(&headers, &rows)),
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
+        OutputFormat::Table => println!("{}", render_table_styled(&headers, &rows, &styles)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json)?);

@@ -111,11 +111,13 @@ fn doctor_reports_missing_vault_without_failing() {
     let home = TempDir::new().expect("tempdir");
 
     cli(&home)
-        .args(["doctor", "--format", "raw"])
+        .args(["doctor", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("summary\t"))
-        .stdout(predicate::str::contains("warn\tvault\tvault not found"));
+        .stdout(predicate::str::contains("\"summary\":"))
+        .stdout(predicate::str::contains("\"severity\": \"warn\""))
+        .stdout(predicate::str::contains("\"code\": \"vault\""))
+        .stdout(predicate::str::contains("vault not found"));
 }
 
 #[test]
@@ -160,19 +162,17 @@ fn doctor_reports_existing_link_and_decrypts_when_requested() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["doctor", "--decrypt", "--format", "raw"])
+        .args(["doctor", "--decrypt", "--format", "json"])
         .assert()
         .success()
+        .stdout(predicate::str::contains("vault decrypted successfully"))
         .stdout(predicate::str::contains(
-            "ok\tdecrypt\tvault decrypted successfully",
+            "vault is at the current format version",
         ))
         .stdout(predicate::str::contains(
-            "ok\tvault_format\tvault is at the current format version",
+            "linked project 'doctor-project' exists in the vault",
         ))
-        .stdout(predicate::str::contains(
-            "ok\tlink_target\tlinked project 'doctor-project' exists in the vault",
-        ))
-        .stdout(predicate::str::contains("warn\tstray_env_file\tfound"));
+        .stdout(predicate::str::contains("stray_env_file"));
 }
 
 #[test]
@@ -189,11 +189,11 @@ fn doctor_fails_when_link_target_is_missing() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["doctor", "--decrypt", "--format", "raw"])
+        .args(["doctor", "--decrypt", "--format", "json"])
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "error\tlink_target\tlinked project 'ghost-project' was not found in the vault",
+            "linked project 'ghost-project' was not found in the vault",
         ));
 }
 
@@ -754,29 +754,6 @@ fn add_from_example_uses_defaults_and_prompts_missing_values() {
 }
 
 #[test]
-fn vars_shows_types_and_masks_secret_values() {
-    let home = TempDir::new().expect("tempdir");
-    let project_dir = TempDir::new().expect("tempdir");
-    let env_path = project_dir.path().join(".env");
-
-    fs::write(&env_path, "API_KEY=abc123\nPORT=3000\n").expect("write env");
-
-    cli(&home).arg("init").assert().success();
-    cli(&home)
-        .current_dir(project_dir.path())
-        .args(["add", "typed-project"])
-        .assert()
-        .success();
-
-    cli(&home)
-        .args(["vars", "--project", "typed-project", "--format", "raw"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("API_KEY\tsecret\tab***"))
-        .stdout(predicate::str::contains("PORT\tplain\t3000"));
-}
-
-#[test]
 fn vars_json_masks_secrets_and_preserves_types() {
     let home = TempDir::new().expect("tempdir");
     let project_dir = TempDir::new().expect("tempdir");
@@ -913,10 +890,11 @@ fn vars_can_resolve_project_from_link() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["vars", "--format", "raw"])
+        .args(["vars", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("JWT_SECRET\tsecret\tsu***"));
+        .stdout(predicate::str::contains("\"key\": \"JWT_SECRET\""))
+        .stdout(predicate::str::contains("\"value\": \"su***\""));
 }
 
 #[test]
@@ -946,10 +924,11 @@ fn set_can_override_variable_type_explicitly() {
         .success();
 
     cli(&home)
-        .args(["vars", "--project", "typed-set-project", "--format", "raw"])
+        .args(["vars", "--project", "typed-set-project", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t4000"));
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"4000\""));
 }
 
 #[test]
@@ -974,10 +953,11 @@ fn unset_removes_variable_from_project() {
         .stdout(predicate::str::contains("Variable removed."));
 
     cli(&home)
-        .args(["vars", "--project", "unset-project", "--format", "raw"])
+        .args(["vars", "--project", "unset-project", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t3000"))
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"3000\""))
         .stdout(predicate::str::contains("MODE").not());
 }
 
@@ -1004,10 +984,11 @@ fn unset_can_resolve_project_from_link() {
 
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["vars", "--format", "raw"])
+        .args(["vars", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("KEEP\tplain\t1"))
+        .stdout(predicate::str::contains("\"key\": \"KEEP\""))
+        .stdout(predicate::str::contains("\"value\": \"1\""))
         .stdout(predicate::str::contains("DROP").not());
 }
 
@@ -1036,21 +1017,48 @@ fn diff_example_reports_shared_missing_and_extra_keys() {
             "--example",
             example_path.to_str().expect("utf8 path"),
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("mode\texample"))
-        .stdout(predicate::str::contains(
-            "summary\tshared=2\tmissing=1\textra=1",
-        ))
-        .stdout(predicate::str::contains("shared\t2"))
-        .stdout(predicate::str::contains("missing\t1"))
-        .stdout(predicate::str::contains("extra\t1"))
-        .stdout(predicate::str::contains("ok\tAPI_KEY"))
-        .stdout(predicate::str::contains("ok\tPORT"))
-        .stdout(predicate::str::contains("missing\tREQUIRED_KEY"))
-        .stdout(predicate::str::contains("extra\tLOCAL_ONLY"));
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let has_item = |status: &str, key: &str| {
+                parsed
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|item| {
+                        item.get("status") == Some(&Value::String(status.to_owned()))
+                            && item.get("key") == Some(&Value::String(key.to_owned()))
+                    })
+            };
+            let has_metric = |metric: &str, count: &str| {
+                parsed
+                    .get("summary")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|row| {
+                        row.get("metric") == Some(&Value::String(metric.to_owned()))
+                            && row.get("count") == Some(&Value::String(count.to_owned()))
+                    })
+            };
+
+            parsed.get("mode") == Some(&Value::String("example".to_owned()))
+                && has_metric("shared", "2")
+                && has_metric("missing", "1")
+                && has_metric("extra", "1")
+                && has_item("ok", "API_KEY")
+                && has_item("ok", "PORT")
+                && has_item("missing", "REQUIRED_KEY")
+                && has_item("extra", "LOCAL_ONLY")
+        }));
 }
 
 #[test]
@@ -1077,11 +1085,11 @@ fn diff_example_can_resolve_project_from_link() {
             "--example",
             example_path.to_str().expect("utf8 path"),
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("missing\tREQUIRED_KEY"));
+        .stdout(predicate::str::contains("\"key\": \"REQUIRED_KEY\""));
 }
 
 #[test]
@@ -1114,24 +1122,51 @@ fn diff_between_projects_reports_shared_and_unique_keys() {
             "left-project",
             "right-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("mode\tproject"))
-        .stdout(predicate::str::contains(
-            "summary\tshared=2\tchanged_values=1\tchanged_types=0\tonly_left=1\tonly_right=1",
-        ))
-        .stdout(predicate::str::contains("shared\t2"))
-        .stdout(predicate::str::contains("changed_values\t1"))
-        .stdout(predicate::str::contains("changed_types\t0"))
-        .stdout(predicate::str::contains("only_left\t1"))
-        .stdout(predicate::str::contains("only_right\t1"))
-        .stdout(predicate::str::contains("ok\tPORT"))
-        .stdout(predicate::str::contains("ok\tSHARED"))
-        .stdout(predicate::str::contains("value_changed\tPORT"))
-        .stdout(predicate::str::contains("left_only\tLEFT_ONLY"))
-        .stdout(predicate::str::contains("right_only\tRIGHT_ONLY"));
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let has_item = |status: &str, key: &str| {
+                parsed
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|item| {
+                        item.get("status") == Some(&Value::String(status.to_owned()))
+                            && item.get("key") == Some(&Value::String(key.to_owned()))
+                    })
+            };
+            let has_metric = |metric: &str, count: &str| {
+                parsed
+                    .get("summary")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|row| {
+                        row.get("metric") == Some(&Value::String(metric.to_owned()))
+                            && row.get("count") == Some(&Value::String(count.to_owned()))
+                    })
+            };
+
+            parsed.get("mode") == Some(&Value::String("project".to_owned()))
+                && has_metric("shared", "2")
+                && has_metric("changed_values", "1")
+                && has_metric("changed_types", "0")
+                && has_metric("only_left", "1")
+                && has_metric("only_right", "1")
+                && has_item("ok", "PORT")
+                && has_item("ok", "SHARED")
+                && has_item("value_changed", "PORT")
+                && has_item("left_only", "LEFT_ONLY")
+                && has_item("right_only", "RIGHT_ONLY")
+        }));
 }
 
 #[test]
@@ -1175,13 +1210,43 @@ fn diff_between_projects_reports_type_changes_separately() {
             "left-project",
             "right-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("changed_values\t0"))
-        .stdout(predicate::str::contains("changed_types\t1"))
-        .stdout(predicate::str::contains("type_changed\tAPI_TOKEN"));
+        .stdout(predicate::function(|output: &str| {
+            let parsed: Value = match serde_json::from_str(output) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+
+            let has_item = |status: &str, key: &str| {
+                parsed
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|item| {
+                        item.get("status") == Some(&Value::String(status.to_owned()))
+                            && item.get("key") == Some(&Value::String(key.to_owned()))
+                    })
+            };
+            let has_metric = |metric: &str, count: &str| {
+                parsed
+                    .get("summary")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .any(|row| {
+                        row.get("metric") == Some(&Value::String(metric.to_owned()))
+                            && row.get("count") == Some(&Value::String(count.to_owned()))
+                    })
+            };
+
+            has_metric("changed_values", "0")
+                && has_metric("changed_types", "1")
+                && has_item("type_changed", "API_TOKEN")
+        }));
 }
 
 #[test]
@@ -1325,10 +1390,11 @@ fn generate_can_store_value_in_project() {
         .stdout(predicate::str::contains("Value generated and saved."));
 
     cli(&home)
-        .args(["vars", "--project", "gen-project", "--format", "raw"])
+        .args(["vars", "--project", "gen-project", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));
+        .stdout(predicate::str::contains("\"key\": \"JWT_SECRET\""))
+        .stdout(predicate::str::contains("\"type\": \"secret\""));
 }
 
 #[test]
@@ -1441,11 +1507,12 @@ fn generate_interactive_mode_can_store_value_via_env_overrides() {
             "--project",
             "interactive-gen-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("JWT_SECRET\tsecret\t"));
+        .stdout(predicate::str::contains("\"key\": \"JWT_SECRET\""))
+        .stdout(predicate::str::contains("\"type\": \"secret\""));
 }
 
 #[test]
@@ -1733,10 +1800,10 @@ fn config_toml_overrides_the_default_max_versions() {
         }));
 
     cli(&home)
-        .args(["doctor", "--format", "raw"])
+        .args(["doctor", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("ok\tconfig\tmax_versions=2"))
+        .stdout(predicate::str::contains("max_versions=2"))
         .stdout(predicate::str::contains("from config.toml"));
 }
 
@@ -1759,7 +1826,7 @@ fn vars_shows_last_modified_column() {
         .args(["vars", "--project", "vars-modified-project"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("last modified"));
+        .stdout(predicate::str::contains("LAST MODIFIED"));
 }
 
 #[test]
@@ -1834,7 +1901,7 @@ fn safe_output_never_leaks_a_known_secret_across_commands_and_formats() {
         .assert()
         .success();
 
-    for format in ["table", "raw", "json"] {
+    for format in ["table", "json"] {
         cli(&home)
             .args(["vars", "--project", "canary-project", "--format", format])
             .assert()
@@ -1976,7 +2043,7 @@ fn env_add_and_list_shows_environments() {
             "--project",
             "env-list-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
@@ -1995,7 +2062,7 @@ fn env_add_and_list_shows_environments() {
             "--project",
             "env-list-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
@@ -2049,7 +2116,7 @@ fn env_remove_can_be_cancelled_and_then_confirmed() {
             "--project",
             "env-remove-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
@@ -2075,7 +2142,7 @@ fn env_remove_can_be_cancelled_and_then_confirmed() {
             "--project",
             "env-remove-project",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
@@ -2147,11 +2214,12 @@ fn env_add_from_seeds_values_from_another_environment() {
             "--env",
             "staging",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t3000"))
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"3000\""))
         .stdout(predicate::str::contains("API_KEY"));
 
     // The seed is a one-time copy, not a link: changing it in staging must
@@ -2168,10 +2236,11 @@ fn env_add_from_seeds_values_from_another_environment() {
         .assert()
         .success();
     cli(&home)
-        .args(["vars", "--project", "seed-project", "--format", "raw"])
+        .args(["vars", "--project", "seed-project", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t3000"));
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"3000\""));
 }
 
 #[test]
@@ -2245,10 +2314,11 @@ fn env_switch_pins_the_default_environment_for_the_directory() {
     // vars now resolves to staging via .envlt-link without an explicit --env.
     cli(&home)
         .current_dir(project_dir.path())
-        .args(["vars", "--format", "raw"])
+        .args(["vars", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t9000"));
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"9000\""));
 }
 
 #[test]
@@ -2306,10 +2376,11 @@ fn set_env_scopes_a_variable_to_that_environment() {
 
     // The default ("local") environment is untouched by the --env staging set.
     cli(&home)
-        .args(["vars", "--project", "env-scope-project", "--format", "raw"])
+        .args(["vars", "--project", "env-scope-project", "--format", "json"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t3000"));
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"3000\""));
 
     cli(&home)
         .args([
@@ -2319,11 +2390,12 @@ fn set_env_scopes_a_variable_to_that_environment() {
             "--env",
             "staging",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("PORT\tplain\t9000"));
+        .stdout(predicate::str::contains("\"key\": \"PORT\""))
+        .stdout(predicate::str::contains("\"value\": \"9000\""));
 }
 
 #[test]
@@ -2364,11 +2436,12 @@ fn diff_other_env_compares_environments_within_the_same_project() {
             "--other-env",
             "staging",
             "--format",
-            "raw",
+            "json",
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("value_changed\tPORT"));
+        .stdout(predicate::str::contains("\"status\": \"value_changed\""))
+        .stdout(predicate::str::contains("\"key\": \"PORT\""));
 }
 
 #[test]

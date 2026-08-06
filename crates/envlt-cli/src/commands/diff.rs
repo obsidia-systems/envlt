@@ -5,7 +5,19 @@ use envlt_core::AppService;
 use serde_json::{json, to_string_pretty};
 
 use crate::cli::{read_passphrase, resolve_environment};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{
+    render_table, render_table_styled, rows_to_json_objects, CellStyle, OutputFormat,
+};
+
+/// `ok`/shared items are the expected common case and stay unstyled; every
+/// other status (missing, extra, changed, left/right-only) is flagged.
+fn item_style(status: &str) -> CellStyle {
+    if status == "ok" {
+        CellStyle::Plain
+    } else {
+        CellStyle::Warn
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_diff(
@@ -60,27 +72,21 @@ pub fn run_diff(
             item_rows.push(vec!["extra".to_owned(), key.clone()]);
         }
 
+        let item_styles = item_rows
+            .iter()
+            .map(|row| vec![item_style(&row[0]), CellStyle::Plain])
+            .collect::<Vec<_>>();
+
         match format {
-            OutputFormat::Raw => {
-                println!("mode\texample");
-                println!("project\t{}", diff.project);
-                println!("environment\t{environment}");
-                println!("example\t{}", diff.example_path.display());
-                println!(
-                    "summary\tshared={}\tmissing={}\textra={}",
-                    diff.shared_keys.len(),
-                    diff.missing_in_vault.len(),
-                    diff.extra_in_vault.len()
-                );
-                println!("{}", render_raw_rows(&summary_rows));
-                println!("{}", render_raw_rows(&item_rows));
-            }
             OutputFormat::Table => {
                 println!("{}", render_table(&["field", "value"], &metadata_rows));
                 println!();
                 println!("{}", render_table(&["metric", "count"], &summary_rows));
                 println!();
-                println!("{}", render_table(&["status", "key"], &item_rows));
+                println!(
+                    "{}",
+                    render_table_styled(&["status", "key"], &item_rows, &item_styles)
+                );
             }
             OutputFormat::Json => {
                 let summary = rows_to_json_objects(&["metric", "count"], &summary_rows);
@@ -154,28 +160,21 @@ pub fn run_diff(
             item_rows.push(vec!["right_only".to_owned(), key.clone()]);
         }
 
+        let item_styles = item_rows
+            .iter()
+            .map(|row| vec![item_style(&row[0]), CellStyle::Plain])
+            .collect::<Vec<_>>();
+
         match format {
-            OutputFormat::Raw => {
-                println!("mode\tproject");
-                println!("left\t{left_label}");
-                println!("right\t{right_label}");
-                println!(
-                    "summary\tshared={}\tchanged_values={}\tchanged_types={}\tonly_left={}\tonly_right={}",
-                    diff.shared_keys.len(),
-                    diff.changed_values.len(),
-                    diff.changed_types.len(),
-                    diff.only_in_left.len(),
-                    diff.only_in_right.len()
-                );
-                println!("{}", render_raw_rows(&summary_rows));
-                println!("{}", render_raw_rows(&item_rows));
-            }
             OutputFormat::Table => {
                 println!("{}", render_table(&["field", "value"], &metadata_rows));
                 println!();
                 println!("{}", render_table(&["metric", "count"], &summary_rows));
                 println!();
-                println!("{}", render_table(&["status", "key"], &item_rows));
+                println!(
+                    "{}",
+                    render_table_styled(&["status", "key"], &item_rows, &item_styles)
+                );
             }
             OutputFormat::Json => {
                 let summary = rows_to_json_objects(&["metric", "count"], &summary_rows);

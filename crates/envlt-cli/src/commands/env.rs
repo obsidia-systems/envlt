@@ -4,8 +4,8 @@ use anyhow::Result;
 use envlt_core::AppService;
 use serde_json::to_string_pretty;
 
-use crate::cli::{confirm_action, print_success, read_passphrase};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::cli::{confirm_action, print_success, read_passphrase, resolve_environment};
+use crate::output::{render_table_styled, rows_to_json_objects, CellStyle, OutputFormat};
 
 pub fn run_env_list(
     service: &AppService,
@@ -15,16 +15,26 @@ pub fn run_env_list(
     let passphrase = read_passphrase(service.store(), false)?;
     let project = service.resolve_project_name(project.as_deref(), None)?;
     let environments = service.list_environments(&project, &passphrase)?;
+    let current = resolve_environment(None, None)?;
 
     let headers = ["environment"];
+    let styles = environments
+        .iter()
+        .map(|name| {
+            if *name == current {
+                vec![CellStyle::Bold]
+            } else {
+                vec![CellStyle::Plain]
+            }
+        })
+        .collect::<Vec<_>>();
     let rows = environments
         .into_iter()
         .map(|name| vec![name])
         .collect::<Vec<_>>();
 
     match format {
-        OutputFormat::Table => println!("{}", render_table(&headers, &rows)),
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
+        OutputFormat::Table => println!("{}", render_table_styled(&headers, &rows, &styles)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json)?);

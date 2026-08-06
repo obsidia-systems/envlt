@@ -101,7 +101,6 @@ Behavior:
 
 ```bash
 envlt auth status
-envlt auth status --format raw
 envlt auth status --format json
 ```
 
@@ -113,7 +112,6 @@ Behavior:
 Output formats:
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt add <project>`
@@ -133,14 +131,12 @@ List stored projects.
 
 ```bash
 envlt list
-envlt list --format raw
 envlt list --format json
 ```
 
 Output formats:
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt remove <project> [--yes]`
@@ -166,7 +162,6 @@ Manage a project's environments.
 
 ```bash
 envlt env list --project api-payments
-envlt env list --project api-payments --format raw
 ```
 
 #### `envlt env add <name> [--project <name>] [--from <other-env>]`
@@ -213,7 +208,6 @@ Behavior:
 Output formats (`env list`):
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt vars [--project <name>] [--env <name>]`
@@ -224,7 +218,6 @@ Show variable names, types, and masked or visible values depending on type, for 
 envlt vars --project api-payments
 envlt vars
 envlt vars --project api-payments --env staging
-envlt vars --project api-payments --format raw
 envlt vars --project api-payments --format json
 ```
 
@@ -236,7 +229,6 @@ Output behavior:
 Output formats:
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt get <key> [--project <name>] [--env <name>]`
@@ -264,7 +256,6 @@ envlt history --project my-api
 envlt history --project my-api HELLO_WORLD
 envlt history HELLO_WORLD
 envlt history --project my-api --env staging
-envlt history --project my-api --format raw
 ```
 
 Behavior:
@@ -279,7 +270,6 @@ Behavior:
 Output formats:
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt check`
@@ -306,7 +296,6 @@ This is useful for automation, pre-commit hooks, and CI checks.
 envlt diff --project api-payments --example .env.example
 envlt diff --example .env.example
 envlt diff --project api-payments --env staging --example .env.example
-envlt diff --project api-payments --example .env.example --format raw
 envlt diff --project api-payments --example .env.example --format json
 ```
 
@@ -333,7 +322,6 @@ Output format:
 envlt diff --project api-payments api-auth
 envlt diff --project api-payments --other-env staging
 envlt diff --project api-payments --env staging api-auth --other-env prod
-envlt diff --project api-payments api-auth --format raw
 envlt diff --project api-payments api-auth --format json
 ```
 
@@ -366,7 +354,6 @@ Run local diagnostics.
 ```bash
 envlt doctor
 envlt doctor --decrypt
-envlt doctor --format raw
 envlt doctor --format json
 ```
 
@@ -389,7 +376,6 @@ Common recovery steps for doctor failures are documented in [Troubleshooting](tr
 Output formats:
 
 - `--format table` (default)
-- `--format raw`
 - `--format json`
 
 ### `envlt set [--project <name>] [--env <name>] <KEY=VALUE>`
@@ -445,7 +431,6 @@ Generate secure values.
 
 ```bash
 envlt generate --list-types
-envlt generate --list-types --format raw
 envlt generate --list-types --format json
 envlt generate
 envlt generate --type jwt-secret

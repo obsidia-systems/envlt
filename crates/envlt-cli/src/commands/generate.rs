@@ -8,7 +8,7 @@ use crate::cli::{
     print_success, read_generate_project, read_generate_save_choice, read_generate_set_key,
     read_generate_type, read_passphrase, resolve_environment,
 };
-use crate::output::{render_raw_rows, render_table, OutputFormat};
+use crate::output::{render_table, OutputFormat};
 
 const DEFAULT_GEN_TYPE: &str = "token";
 
@@ -57,13 +57,6 @@ pub fn run_generate(service: &AppService, options: GenerateOptions<'_>) -> Resul
                     .map(|gen_type| vec![gen_type.clone()])
                     .collect::<Vec<_>>();
                 println!("{}", render_table(&["type"], &rows));
-            }
-            OutputFormat::Raw => {
-                let rows = supported
-                    .iter()
-                    .map(|gen_type| vec![gen_type.clone()])
-                    .collect::<Vec<_>>();
-                println!("{}", render_raw_rows(&rows));
             }
             OutputFormat::Json => {
                 println!("{}", to_string_pretty(&supported)?);

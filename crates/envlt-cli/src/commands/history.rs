@@ -6,7 +6,7 @@ use envlt_core::{ActivityAction, ActivityEvent, AppService};
 use serde_json::to_string_pretty;
 
 use crate::cli::{read_passphrase, resolve_environment};
-use crate::output::{render_raw_rows, render_table, rows_to_json_objects, OutputFormat};
+use crate::output::{render_table, rows_to_json_objects, OutputFormat};
 
 pub fn run_history(
     service: &AppService,
@@ -27,7 +27,7 @@ pub fn run_history(
     if events.is_empty() {
         match format {
             OutputFormat::Json => println!("[]"),
-            OutputFormat::Raw | OutputFormat::Table => println!("No history found."),
+            OutputFormat::Table => println!("No history found."),
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -64,7 +64,6 @@ fn render_variable_history(
             println!("Variable history for {key} in project {project}:");
             println!("{}", render_table(&headers, &rows));
         }
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json).unwrap_or_default());
@@ -91,7 +90,6 @@ fn render_project_history(project: &str, events: &[ActivityEvent], format: Outpu
             println!("Project activity log for {project}:");
             println!("{}", render_table(&headers, &rows));
         }
-        OutputFormat::Raw => println!("{}", render_raw_rows(&rows)),
         OutputFormat::Json => {
             let json = rows_to_json_objects(&headers, &rows);
             println!("{}", to_string_pretty(&json).unwrap_or_default());

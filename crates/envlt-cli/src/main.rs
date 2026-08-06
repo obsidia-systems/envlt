@@ -615,7 +615,7 @@ enum Commands {
 enum EnvCommands {
     #[command(
         about = "List a project's environments",
-        after_help = "Examples:\n  envlt env list --project my-project\n  envlt env list --project my-project --format raw"
+        after_help = "Examples:\n  envlt env list --project my-project\n  envlt env list --project my-project --format json"
     )]
     List {
         #[arg(
