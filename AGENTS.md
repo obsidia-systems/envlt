@@ -141,6 +141,24 @@ If behavior changes, update relevant documentation in the same change:
 
 Keep docs implementation-driven. Do not promise cloud sync, GUI, team policies, or remote services unless implemented.
 
+## Branching Strategy
+
+`envlt` uses a git-flow-style model:
+
+- `main` — always release-ready. Every tag is cut from here. Protected: merging requires CI (`Formatting`, `ubuntu-latest`, `macos-latest`, `Supply-chain checks`) to pass.
+- `develop` — integration branch. All work lands here first.
+- `feature/<short-name>` — branched from `develop`, merged back into `develop`.
+
+Never open a PR from a `feature/*` or fix branch directly against `main` — not even urgent fixes. Everything, including hotfixes, merges into `develop` first; `develop` is what gets merged into `main` before a release. See `CONTRIBUTING.md` for the full branching and release checklist.
+
+## Changelog & Versioning
+
+`CHANGELOG.md` follows Keep a Changelog and Semantic Versioning:
+
+- Add an entry under `## [Unreleased]` in the same change for anything that affects the build: CLI behavior, dependency versions, vault/bundle format, CI or release workflow changes.
+- Docs-only changes (`README.md`, `docs/**`) do not need a changelog entry.
+- `## [Unreleased]` is only renamed to `## [X.Y.Z] - YYYY-MM-DD` when a release is actually tagged. Never assign a version number to unreleased work ahead of that.
+
 ## Product Direction Notes
 
 Current recommendations favor:
@@ -175,5 +193,7 @@ Avoid premature rewrites such as:
 - Keep CI green with `make check`.
 - Include tests for new behavior.
 - Update docs for user-visible or architecture-visible changes.
+- Add a `CHANGELOG.md` entry under `## [Unreleased]` for anything that affects the build (see [Changelog & Versioning](#changelog--versioning)).
+- Target `develop`, never `main` (see [Branching Strategy](#branching-strategy)).
 - Do not commit secrets, generated local vaults, `.env` files, or machine-specific artifacts.
 - Keep `Cargo.lock` updated if dependencies change.
