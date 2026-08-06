@@ -31,7 +31,7 @@ This project uses a git-flow-style branching model:
 - `develop` — integration branch. Feature branches merge here first; `main` only moves forward by merging `develop` into it.
 - `feature/<short-name>` — short-lived branches for new work, branched from `develop` and merged back into `develop`.
 
-A hotfix that must land directly on `main` (for example, an urgent build-breaking fix) should still be merged into `develop` afterward so the two branches don't drift apart.
+`main` never receives a PR from a `feature/*` branch directly, not even urgent fixes: everything, including hotfixes, merges into `develop` first, and `develop` is what gets merged into `main`.
 
 ### Starting new work
 
