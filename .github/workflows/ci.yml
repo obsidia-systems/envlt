@@ -20,7 +20,7 @@ concurrency:
 jobs:
   fmt:
     name: Formatting
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
 
     steps:
@@ -40,23 +40,9 @@ jobs:
         run: cargo fmt --all -- --check
 
   checks:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Checks
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          # macos-latest is disabled here to avoid a hosted-runner job on
-          # every push/PR: the maintainer develops on macOS day-to-day
-          # already, and release.yml still builds+smoke-tests on
-          # macos-15/macos-15-intel for every tag, so macOS regressions
-          # still get caught before a release ships. Re-enable by
-          # uncommenting the line below -- and add "macos-latest" back to
-          # main's required status checks in branch protection, since it
-          # was removed from there when this was disabled.
-          # - macos-latest
 
     steps:
       - name: Checkout
@@ -79,7 +65,7 @@ jobs:
 
   supply-chain:
     name: Supply-chain checks
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     # cargo-audit is compiled from source by the action below, and its own
     # dependency tree's MSRV can (and has) outpaced rust-toolchain.toml's
